@@ -14,16 +14,19 @@ ROOT = Path(__file__).resolve().parent.parent
 
 MODEL_REGISTRY = {
     "plasma-1.0": {
-        "name": "1386.ai Plasma 1.0",
+        "name": "Plasma 1.0",
         "config": ROOT / "configs" / "finetune_1.0.yaml",
-        "checkpoint": ROOT / "checkpoints" / "finetune_v5_final.pt",
+        "checkpoint": ROOT / "checkpoints" / "finetune_1.0_final.pt",
+        "tokenizer": ROOT / "data" / "tokenizer_v4.model",
         "params": "235M",
         "multiturn": False,
     },
     "plasma-1.1": {
-        "name": "1386.ai Plasma 1.1",
+        "name": "Plasma 1.1",
         "config": ROOT / "configs" / "finetune_1.1.yaml",
         "checkpoint": ROOT / "checkpoints" / "finetune_1.1_final.pt",
+        "tokenizer": ROOT / "data" / "tokenizer_1.1.model",
+        "tokenizer_fallback": ROOT / "data" / "tokenizer_v4.model",
         "params": "500M",
         "multiturn": True,
     },
@@ -41,8 +44,16 @@ class ModelManager:
         self.tokenizer = None
         self._load_tokenizer()
 
-    def _load_tokenizer(self):
-        tok_path = ROOT / "data" / "tokenizer_v4.model"
+    def _load_tokenizer(self, model_id=None):
+        tok_path = None
+        if model_id and model_id in MODEL_REGISTRY:
+            info = MODEL_REGISTRY[model_id]
+            if info.get("tokenizer") and info["tokenizer"].exists():
+                tok_path = info["tokenizer"]
+            elif info.get("tokenizer_fallback") and info["tokenizer_fallback"].exists():
+                tok_path = info["tokenizer_fallback"]
+        if tok_path is None:
+            tok_path = ROOT / "data" / "tokenizer_v4.model"
         if tok_path.exists():
             self.tokenizer = spm.SentencePieceProcessor()
             self.tokenizer.load(str(tok_path))
@@ -82,6 +93,7 @@ class ModelManager:
         load_checkpoint(str(info["checkpoint"]), self.model)
         self.model.eval()
         self.current_model_id = model_id
+        self._load_tokenizer(model_id)
 
         print(f"Loaded {info['name']} ({self.model.count_parameters():,} params) on {self.device}")
 
