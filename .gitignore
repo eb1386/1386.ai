@@ -4,6 +4,7 @@ __pycache__/
 .venv/
 venv/
 *.egg-info/
+.env
 
 # training data
 data/raw_*/
