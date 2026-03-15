@@ -70,12 +70,36 @@ def generate(
     tokens = tokenizer.encode(prompt, out_type=int)
     max_seq = model.config.max_seq_len
 
-    for _ in range(max_tokens):
-        context = tokens[-max_seq:]
-        x = torch.tensor([context], dtype=torch.long, device=device)
+    # truncate prompt if it exceeds max context
+    if len(tokens) > max_seq:
+        tokens = tokens[-max_seq:]
+
+    # prefill: process entire prompt, collect kv cache
+    x = torch.tensor([tokens], dtype=torch.long, device=device)
+    kv_caches = [None] * len(model.layers)
+
+    with torch.autocast(device_type=device.type, dtype=torch.bfloat16, enabled=device.type == "cuda"):
+        logits, kv_caches = model(x, start_pos=0, kv_caches=kv_caches)
+
+    next_logits = logits[0, -1, :]
+    next_logits = apply_repetition_penalty(next_logits, tokens, repetition_penalty)
+    next_token = sample_top_k_top_p(next_logits, temperature, top_k, top_p)
+
+    if next_token == tokenizer.eos_id():
+        return tokenizer.decode(tokens)
+
+    tokens.append(next_token)
+    cur_pos = len(tokens) - 1  # position of the token we just appended
+
+    # decode: one token at a time using cached keys/values
+    for _ in range(max_tokens - 1):
+        if cur_pos >= max_seq:
+            break
+
+        x = torch.tensor([[next_token]], dtype=torch.long, device=device)
 
         with torch.autocast(device_type=device.type, dtype=torch.bfloat16, enabled=device.type == "cuda"):
-            logits = model(x)
+            logits, kv_caches = model(x, start_pos=cur_pos, kv_caches=kv_caches)
 
         next_logits = logits[0, -1, :]
         next_logits = apply_repetition_penalty(next_logits, tokens, repetition_penalty)
@@ -85,6 +109,7 @@ def generate(
             break
 
         tokens.append(next_token)
+        cur_pos += 1
 
     return tokenizer.decode(tokens)
 
