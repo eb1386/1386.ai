@@ -48,6 +48,30 @@ The embedding and output projection weights are tied, cutting the parameter coun
 
 ---
 
+## Demo (Plasma 1.0)
+
+> **You:** Hello!
+>
+> **1386.ai:** Hi there, I'm the one who wrote this. How can I help you today?
+
+> **You:** Name two famous people.
+>
+> **1386.ai:** Two of the most well-known individuals are John F. Kennedy, who was the 35th President of the United States and George W. Bush, a former president from the same country.
+
+> **You:** When was World War 1?
+>
+> **1386.ai:** World War I began on June 26, 1914.
+
+> **You:** Name 4 fruits.
+>
+> **1386.ai:** Fruits are the most common fruit that people eat, and they can be found in a variety of different types such as apples, oranges, bananas, pears, etc
+
+> **You:** What is a steak made of?
+>
+> **1386.ai:** A steak can be made from various types of meat, including beef.
+
+---
+
 ## Training
 
 Training happens in two phases: pretraining on a large filtered corpus, then instruction tuning with loss masking.
