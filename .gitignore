@@ -5,9 +5,17 @@ __pycache__/
 venv/
 *.egg-info/
 
-# training data and artifacts
-data/
-checkpoints/
+# training data
+data/raw_*/
+data/scored_*/
+data/deduped_*/
+data/shards_*/
+data/instruct_shards_*/
+data/*.bin
+
+# checkpoints (keep finals, ignore intermediates)
+checkpoints/*_step_*.pt
+checkpoints/final.pt
 logs/
 
 # web

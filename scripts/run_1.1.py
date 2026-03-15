@@ -25,8 +25,10 @@ SCORED_DIR       = ROOT / "data" / "scored_1.1"
 DEDUPED_DIR      = ROOT / "data" / "deduped_1.1"
 PRETRAIN_SHARDS  = ROOT / "data" / "shards_1.1"
 INSTRUCT_SHARDS  = ROOT / "data" / "instruct_shards_1.1"
-TOKENIZER_OLD    = ROOT / "data" / "tokenizer_v4.model"
+TOKENIZER_OLD    = ROOT / "data" / "tokenizer_1.0.model"
 TOKENIZER_NEW    = ROOT / "data" / "tokenizer_1.1"
+QUALITY_MODEL    = ROOT / "data" / "quality_classifier.bin"
+TOXICITY_MODEL   = ROOT / "data" / "toxicity_classifier.bin"
 CKPT_DIR         = ROOT / "checkpoints"
 LOG_DIR          = ROOT / "logs"
 
@@ -344,12 +346,47 @@ def _download_arxiv(load_dataset):
         print(f"  ERROR: {e}")
 
 
-# ── stage 2: quality scoring ────────────────────────────────────────
+# ── stage 2: train classifiers ──────────────────────────────────────
+def stage_train_classifiers():
+    banner("Stage 2: Train quality + toxicity classifiers")
+
+    from src.data.classifier import train_quality_classifier, train_toxicity_classifier
+
+    if QUALITY_MODEL.exists():
+        print(f"[skip] Quality classifier exists: {QUALITY_MODEL}")
+    else:
+        train_quality_classifier(str(QUALITY_MODEL), n_samples=500_000)
+
+    if TOXICITY_MODEL.exists():
+        print(f"[skip] Toxicity classifier exists: {TOXICITY_MODEL}")
+    else:
+        train_toxicity_classifier(str(TOXICITY_MODEL), n_samples=300_000)
+
+
+# ── stage 3: quality + toxicity scoring ─────────────────────────────
 def stage_quality_score():
-    banner("Stage 2: Quality scoring")
+    banner("Stage 3: Quality + toxicity scoring")
 
     SCORED_DIR.mkdir(parents=True, exist_ok=True)
-    from src.data.quality import filter_and_score
+    from src.data.quality import filter_and_score as heuristic_score
+
+    # load trained classifiers if available
+    quality_clf = None
+    toxicity_clf = None
+
+    if QUALITY_MODEL.exists():
+        from src.data.classifier import QualityClassifier
+        quality_clf = QualityClassifier(str(QUALITY_MODEL))
+        print("  Using trained quality classifier")
+    else:
+        print("  No quality classifier found, using heuristics only")
+
+    if TOXICITY_MODEL.exists():
+        from src.data.classifier import ToxicityClassifier
+        toxicity_clf = ToxicityClassifier(str(TOXICITY_MODEL))
+        print("  Using trained toxicity classifier")
+    else:
+        print("  No toxicity classifier found, skipping toxicity filter")
 
     source_files = [
         ("fineweb_edu_hq.txt", QUALITY_MIN_SCORE),
@@ -374,7 +411,8 @@ def stage_quality_score():
         t0 = time.time()
         total = 0
         kept = 0
-        total_score = 0.0
+        toxic_dropped = 0
+        quality_dropped = 0
         doc_buffer = []
 
         with open(src, "r", encoding="utf-8") as fin, \
@@ -386,36 +424,64 @@ def stage_quality_score():
                     doc_buffer = []
                     if len(text) < 50:
                         continue
+
                     total += 1
-                    passed, score = filter_and_score(text, threshold)
+
+                    # toxicity filter first (fast reject)
+                    if toxicity_clf and toxicity_clf.is_toxic(text, threshold=0.5):
+                        toxic_dropped += 1
+                        continue
+
+                    # combined quality: classifier + heuristics
+                    if quality_clf:
+                        clf_score = quality_clf.score(text)
+                        _, heur_score = heuristic_score(text, 0.0)
+                        # weighted blend: 60% classifier, 40% heuristics
+                        combined = 0.6 * clf_score + 0.4 * heur_score
+                        passed = combined >= threshold
+                    else:
+                        passed, _ = heuristic_score(text, threshold)
+
                     if passed:
                         fout.write(text + "\n\n")
                         kept += 1
-                        total_score += score
+                    else:
+                        quality_dropped += 1
+
                     if total % 100000 == 0:
-                        avg = total_score / max(1, kept)
                         pct = kept / total * 100
-                        print(f"  {total:,} scored | {kept:,} kept ({pct:.1f}%) | avg: {avg:.3f}")
+                        print(f"  {total:,} scored | {kept:,} kept ({pct:.1f}%) | "
+                              f"toxic: {toxic_dropped:,} | low-quality: {quality_dropped:,}")
 
             if doc_buffer:
                 text = "\n".join(doc_buffer).strip()
                 if len(text) >= 50:
                     total += 1
-                    passed, score = filter_and_score(text, threshold)
-                    if passed:
-                        fout.write(text + "\n\n")
-                        kept += 1
-                        total_score += score
+                    if toxicity_clf and toxicity_clf.is_toxic(text, threshold=0.5):
+                        toxic_dropped += 1
+                    else:
+                        if quality_clf:
+                            clf_score = quality_clf.score(text)
+                            _, heur_score = heuristic_score(text, 0.0)
+                            combined = 0.6 * clf_score + 0.4 * heur_score
+                            passed = combined >= threshold
+                        else:
+                            passed, _ = heuristic_score(text, threshold)
+                        if passed:
+                            fout.write(text + "\n\n")
+                            kept += 1
+                        else:
+                            quality_dropped += 1
 
         dt = time.time() - t0
-        avg = total_score / max(1, kept)
         pct = kept / max(1, total) * 100
-        print(f"  {filename}: {kept:,}/{total:,} kept ({pct:.1f}%) | avg: {avg:.3f} | {elapsed_str(dt)}")
+        print(f"  {filename}: {kept:,}/{total:,} kept ({pct:.1f}%) | "
+              f"toxic: {toxic_dropped:,} | low-quality: {quality_dropped:,} | {elapsed_str(dt)}")
 
 
 # ── stage 3: minhash dedup ──────────────────────────────────────────
 def stage_minhash_dedup():
-    banner("Stage 3: MinHash dedup")
+    banner("Stage 4: MinHash dedup")
 
     DEDUPED_DIR.mkdir(parents=True, exist_ok=True)
     from src.data.minhash import MinHashLSH
@@ -501,7 +567,7 @@ def stage_minhash_dedup():
 
 # ── stage 4: train tokenizer ────────────────────────────────────────
 def stage_train_tokenizer():
-    banner("Stage 4: Train tokenizer")
+    banner("Stage 5: Train tokenizer")
 
     model_path = Path(f"{TOKENIZER_NEW}.model")
     if model_path.exists():
@@ -522,14 +588,14 @@ def stage_train_tokenizer():
     result = subprocess.run(cmd, cwd=str(ROOT))
 
     if result.returncode != 0:
-        print("WARNING: Tokenizer training failed, falling back to v4.")
+        print("WARNING: Tokenizer training failed, falling back to 1.0.")
         if TOKENIZER_OLD.exists():
             shutil.copy2(str(TOKENIZER_OLD), str(model_path))
 
 
 # ── stage 5: mix and shard ──────────────────────────────────────────
 def stage_mix_and_shard():
-    banner("Stage 5: Domain mix + tokenization")
+    banner("Stage 6: Domain mix + tokenization")
 
     meta_path = PRETRAIN_SHARDS / "meta.yaml"
     if meta_path.exists():
@@ -558,10 +624,10 @@ def stage_mix_and_shard():
         ("arxiv", "arxiv_clean.txt", 0.05),
     ]
 
-    v4_raw = ROOT / "data" / "raw_v4"
-    v4_configs = [
-        ("v4_pretrain", "pretrain_corpus.txt", 0.05),
-        ("v4_fineweb", "fineweb_edu_corpus.txt", 0.05),
+    old_raw = ROOT / "data" / "raw_1.0"
+    old_configs = [
+        ("1.0_pretrain", "pretrain_corpus.txt", 0.05),
+        ("1.0_fineweb", "fineweb_edu_corpus.txt", 0.05),
     ]
 
     for name, filename, weight in source_configs:
@@ -569,8 +635,8 @@ def stage_mix_and_shard():
         if path.exists() and path.stat().st_size > 0:
             sources.append(DataSource(name, path, weight))
 
-    for name, filename, weight in v4_configs:
-        path = v4_raw / filename
+    for name, filename, weight in old_configs:
+        path = old_raw / filename
         if path.exists() and path.stat().st_size > 0:
             sources.append(DataSource(name, path, weight))
 
@@ -670,7 +736,7 @@ def stage_mix_and_shard():
 
 # ── stage 6: pretrain ────────────────────────────────────────────────
 def stage_pretrain():
-    banner("Stage 6: Pretrain (500M, 200k steps)")
+    banner("Stage 7: Pretrain (500M, 200k steps)")
 
     pretrain_ckpt = CKPT_DIR / "pretrain_1.1_final.pt"
     if pretrain_ckpt.exists():
@@ -716,7 +782,7 @@ def stage_pretrain():
 
 # ── stage 7: synthetic instruct ─────────────────────────────────────
 def stage_generate_synthetic():
-    banner("Stage 7: Synthetic instruction data")
+    banner("Stage 8: Synthetic instruction data")
 
     synthetic_path = RAW_DIR / "synthetic_instruct.jsonl"
 
@@ -751,7 +817,7 @@ def stage_generate_synthetic():
 
 # ── stage 8: build instruct shards ──────────────────────────────────
 def stage_build_instruct_shards():
-    banner("Stage 8: Build instruct shards")
+    banner("Stage 9: Build instruct shards")
 
     meta_path = INSTRUCT_SHARDS / "meta.yaml"
     if meta_path.exists():
@@ -776,9 +842,9 @@ def stage_build_instruct_shards():
     if synthetic.exists():
         instruct_files.append(("synthetic", synthetic))
 
-    v4_instruct = ROOT / "data" / "raw_v4" / "instruct_corpus.jsonl"
-    if v4_instruct.exists():
-        instruct_files.append(("v4_instruct", v4_instruct))
+    old_instruct = ROOT / "data" / "raw_1.0" / "instruct_corpus.jsonl"
+    if old_instruct.exists():
+        instruct_files.append(("1.0_instruct", old_instruct))
 
     if not instruct_files:
         print("ERROR: No instruct data found!")
@@ -922,7 +988,7 @@ def _build_multiturn_mask(text, sp):
 
 # ── stage 9: finetune ────────────────────────────────────────────────
 def stage_finetune():
-    banner("Stage 9: Finetune (30k steps)")
+    banner("Stage 10: Finetune (30k steps)")
 
     finetune_ckpt = CKPT_DIR / "finetune_1.1_final.pt"
     if finetune_ckpt.exists():
@@ -963,7 +1029,7 @@ def stage_finetune():
 
 # ── stage 10: test ───────────────────────────────────────────────────
 def stage_test():
-    banner("Stage 10: Test")
+    banner("Stage 11: Test")
 
     for ckpt_name in ["finetune_1.1_final.pt", "pretrain_1.1_final.pt"]:
         ckpt = CKPT_DIR / ckpt_name
@@ -1045,7 +1111,7 @@ def stage_test():
 def main():
     parser = argparse.ArgumentParser(description="Plasma 1.1 training pipeline")
     parser.add_argument("--stage", choices=[
-        "cleanup", "download", "quality", "dedup", "tokenizer",
+        "cleanup", "download", "classifiers", "quality", "dedup", "tokenizer",
         "shards", "pretrain", "synthetic", "instruct", "finetune", "test",
     ], help="Run a specific stage")
     args = parser.parse_args()
@@ -1055,17 +1121,18 @@ def main():
     print("=" * 64)
 
     stages = {
-        "cleanup":   stage_cleanup,
-        "download":  stage_download,
-        "quality":   stage_quality_score,
-        "dedup":     stage_minhash_dedup,
-        "tokenizer": stage_train_tokenizer,
-        "shards":    stage_mix_and_shard,
-        "pretrain":  stage_pretrain,
-        "synthetic": stage_generate_synthetic,
-        "instruct":  stage_build_instruct_shards,
-        "finetune":  stage_finetune,
-        "test":      stage_test,
+        "cleanup":     stage_cleanup,
+        "download":    stage_download,
+        "classifiers": stage_train_classifiers,
+        "quality":     stage_quality_score,
+        "dedup":       stage_minhash_dedup,
+        "tokenizer":   stage_train_tokenizer,
+        "shards":      stage_mix_and_shard,
+        "pretrain":    stage_pretrain,
+        "synthetic":   stage_generate_synthetic,
+        "instruct":    stage_build_instruct_shards,
+        "finetune":    stage_finetune,
+        "test":        stage_test,
     }
 
     if args.stage:
