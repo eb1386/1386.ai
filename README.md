@@ -1,8 +1,10 @@
 # 1386.ai
 
-A transformer language model trained from scratch in PyTorch. No pretrained weights, no HuggingFace, no shortcuts. Every weight in this model was learned from raw text on a single RTX 5080 — 5 billion tokens, 100k pretraining steps at batch size 32, then 20k instruction tuning steps with loss masking, all in bf16 mixed precision.
+A lightweight transformer language model built from scratch in PyTorch, trained on a single consumer GPU with a full pipeline for data processing, pretraining, and instruction tuning.
 
-The current release is **Plasma 1.0**, a 235M parameter model. **Plasma 1.1** (500M parameters, multi-turn conversation support) is currently in development.
+No pretrained weights, no HuggingFace model downloads. Every weight is learned from raw text on a single RTX 5080 using bf16 mixed precision with gradient checkpointing. The training infrastructure handles everything from data download through evaluation.
+
+The current release is **Plasma 1.0** (235M parameters). **Plasma 1.1** (500M parameters, multi-turn conversation support, upgraded data pipeline) is in development.
 
 ---
 
@@ -10,13 +12,13 @@ The current release is **Plasma 1.0**, a 235M parameter model. **Plasma 1.1** (5
 
 The model follows the LLaMA architecture with modern training techniques throughout.
 
-**Attention** uses Grouped-Query Attention (GQA) with 16 query heads mapped to 4 key-value heads, reducing memory bandwidth during inference while maintaining quality. All positional information comes from Rotary Positional Embeddings (RoPE), which encode position directly into the attention computation rather than through learned position embeddings — this gives better length generalization and eliminates the need for absolute position tokens.
+**Attention** uses Grouped-Query Attention (GQA) with query heads mapped to fewer key-value heads, reducing memory bandwidth during inference while maintaining quality. All positional information comes from Rotary Positional Embeddings (RoPE), encoding position directly into the attention computation rather than through learned position embeddings. KV caching is supported for fast autoregressive generation.
 
-**Feed-forward layers** use SwiGLU, a gated activation function that replaces the traditional ReLU-based MLP. SwiGLU uses three linear projections (gate, up, down) with a SiLU-gated element-wise product, which consistently outperforms standard two-projection FFNs at the same parameter count.
+**Feed-forward layers** use SwiGLU, a gated activation function that replaces the traditional ReLU MLP. SwiGLU uses three linear projections (gate, up, down) with a SiLU-gated element-wise product, consistently outperforming standard two-projection FFNs at the same parameter count.
 
-**Normalization** is RMSNorm applied before each sub-layer (pre-norm). RMSNorm drops the mean-centering of LayerNorm and only normalizes by the root mean square, which is faster and more numerically stable during mixed-precision training.
+**Normalization** is RMSNorm applied before each sub-layer (pre-norm). RMSNorm drops the mean-centering of LayerNorm and only normalizes by the root mean square, which is faster and more stable during mixed-precision training.
 
-The embedding and output projection weights are tied, which cuts the parameter count without hurting performance.
+The embedding and output projection weights are tied, cutting the parameter count without hurting performance.
 
 ### Plasma 1.0
 
@@ -31,7 +33,7 @@ The embedding and output projection weights are tied, which cuts the parameter c
 | Vocab | 32,000 (SentencePiece BPE) |
 | Precision | bf16 |
 
-### Plasma 1.1 (coming soon)
+### Plasma 1.1 (in development)
 
 | | |
 |---|---|
@@ -41,6 +43,7 @@ The embedding and output projection weights are tied, which cuts the parameter c
 | Attention | 20 heads, 4 KV heads (GQA) |
 | FFN | SwiGLU, 3584 intermediate |
 | Context | 1024 tokens |
+| Vocab | 48,000 (SentencePiece BPE, byte fallback) |
 | Multi-turn | yes |
 
 ---
@@ -49,40 +52,85 @@ The embedding and output projection weights are tied, which cuts the parameter c
 
 Training happens in two phases: pretraining on a large filtered corpus, then instruction tuning with loss masking.
 
-**Pretraining** trains the model on billions of tokens of cleaned, deduplicated text. Data quality is enforced through paragraph-level deduplication using MD5 hashing, length and repetition filtering, and quality scoring. The training pipeline handles downloading, cleaning, tokenization, and shard packing automatically. Training uses mixed-precision bf16 with gradient checkpointing to fit on a single consumer GPU. The learning rate follows a cosine schedule with linear warmup.
+**Pretraining** trains the model on billions of tokens of cleaned, deduplicated text from multiple sources. Training uses mixed-precision bf16 with gradient checkpointing to fit on a single consumer GPU. The learning rate follows a cosine schedule with linear warmup.
 
-**Instruction tuning** teaches the model to follow a conversational format. Loss masking ensures the model only learns from assistant response tokens — user prompts are masked during backpropagation, which dramatically improves instruction following quality. Plasma 1.1 extends this to multi-turn conversations, masking all user turns across the full conversation history.
-
-The tokenizer is a 32,000-vocab SentencePiece BPE model trained on the same corpus.
+**Instruction tuning** teaches the model to follow a conversational format. Loss masking ensures the model only learns from assistant response tokens. User prompts are masked during backpropagation. Plasma 1.1 extends this to multi-turn conversations, masking all user turns across the full conversation history.
 
 ### Training Plasma 1.1
 
-Training Plasma 1.1 from scratch takes several days on a consumer GPU. The pipeline downloads data, builds shards, pretrains 200k steps, then finetunes 30k steps.
+The 1.1 pipeline is an 11-stage process that handles everything from data download to a final inference test.
+
+| Stage | What it does |
+|-------|-------------|
+| 0. Cleanup | Free disk from old checkpoints |
+| 1. Download | Multi-source: FineWeb-Edu, Wikipedia, StackExchange, code (StarCoder), ArXiv |
+| 2. Quality scoring | Multi-signal document scorer (diversity, sentence structure, naturalness, repetition, boilerplate, etc.) |
+| 3. MinHash dedup | Near-duplicate removal across the entire corpus using locality-sensitive hashing |
+| 4. Train tokenizer | 48k vocab SentencePiece BPE on 2 GB diverse sample with byte fallback |
+| 5. Mix and shard | Domain-weighted mixing (45% web, 15% wiki, 15% code, 10% Q&A, etc.) then tokenization |
+| 6. Pretrain | 200k steps, 500M parameters |
+| 7. Synthetic instruct | Generate 50k instruction pairs using Claude API (optional) |
+| 8. Build instruct shards | Multi-turn loss masking across all instruct sources |
+| 9. Finetune | 30k steps with masked loss |
+| 10. Test | Inference on benchmark prompts |
+
+Run the full pipeline:
 
 ```bash
-python scripts/run_v6_upgrade.py
+python scripts/run_1.1.py
 ```
 
-To resume from a checkpoint:
+Run individual stages:
+
+```bash
+python scripts/run_1.1.py --stage download
+python scripts/run_1.1.py --stage quality
+python scripts/run_1.1.py --stage dedup
+python scripts/run_1.1.py --stage tokenizer
+python scripts/run_1.1.py --stage shards
+python scripts/run_1.1.py --stage pretrain
+python scripts/run_1.1.py --stage synthetic
+python scripts/run_1.1.py --stage instruct
+python scripts/run_1.1.py --stage finetune
+```
+
+To resume pretraining from a checkpoint:
 
 ```bash
 python -m src.train.train --config configs/pretrain_1.1.yaml --resume checkpoints/1.1_step_50000.pt
 ```
+
+### Synthetic Instruction Data (optional)
+
+The pipeline can generate high-quality instruction-response pairs using the Claude API. This has the highest impact on instruction following quality for small models.
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...
+python scripts/generate_synthetic.py --n-samples 50000
+```
+
+---
+
+## Infrastructure
+
+- **Data processing** (`src/data/`): quality scoring, MinHash dedup, domain mixing, streaming shard datasets
+- **Model** (`src/model/`): transformer with GQA, SwiGLU, RoPE, RMSNorm, KV cache
+- **Training** (`src/train/`): gradient accumulation, mixed precision, cosine LR, checkpointing
+- **Inference** (`src/inference/`): autoregressive generation with KV caching, temperature/top-k sampling
+- **Evaluation** (`src/eval/`): perplexity, math benchmarks, code benchmarks
+- **Web UI** (`web/`): FastAPI backend with model management and switching
 
 ---
 
 ## Running
 
 ```bash
-pip install torch sentencepiece pyyaml fastapi uvicorn
-```
-
-```bash
+pip install -r requirements.txt
 python run.py
 ```
 
-Opens the chat interface at `http://localhost:8000`.
+Opens the web UI at `http://localhost:8000`. Available models are detected automatically from the checkpoints directory.
 
 ---
 
-Constant updates coming as I continue to improve the model. MIT License.
+MIT License.

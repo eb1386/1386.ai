@@ -1,6 +1,6 @@
 # plasma 1.1 pretrain
 model:
-  vocab_size: 32000
+  vocab_size: 48000
   hidden_size: 1280
   num_layers: 26
   num_heads: 20
@@ -29,5 +29,5 @@ training:
 
 data:
   shard_dir: data/shards_1.1
-  tokenizer_path: data/tokenizer_v4.model
+  tokenizer_path: data/tokenizer_1.1.model
   seq_len: 1024
