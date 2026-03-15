@@ -58,21 +58,22 @@ Training happens in two phases: pretraining on a large filtered corpus, then ins
 
 ### Training Plasma 1.1
 
-The 1.1 pipeline is an 11-stage process that handles everything from data download to a final inference test.
+The 1.1 pipeline is a 12-stage process that handles everything from data download to a final inference test.
 
 | Stage | What it does |
 |-------|-------------|
 | 0. Cleanup | Free disk from old checkpoints |
 | 1. Download | Multi-source: FineWeb-Edu, Wikipedia, StackExchange, code (StarCoder), ArXiv |
-| 2. Quality scoring | Multi-signal document scorer (diversity, sentence structure, naturalness, repetition, boilerplate, etc.) |
-| 3. MinHash dedup | Near-duplicate removal across the entire corpus using locality-sensitive hashing |
-| 4. Train tokenizer | 48k vocab SentencePiece BPE on 2 GB diverse sample with byte fallback |
-| 5. Mix and shard | Domain-weighted mixing (45% web, 15% wiki, 15% code, 10% Q&A, etc.) then tokenization |
-| 6. Pretrain | 200k steps, 500M parameters |
-| 7. Synthetic instruct | Generate 50k instruction pairs using Claude API (optional) |
-| 8. Build instruct shards | Multi-turn loss masking across all instruct sources |
-| 9. Finetune | 30k steps with masked loss |
-| 10. Test | Inference on benchmark prompts |
+| 2. Train classifiers | Train fasttext quality classifier on FineWeb-Edu scores + toxicity classifier on Jigsaw/Civil Comments |
+| 3. Quality + toxicity scoring | Classifier-scored quality filtering (60% classifier, 40% heuristics) plus toxic content removal |
+| 4. MinHash dedup | Near-duplicate removal across the entire corpus using locality-sensitive hashing |
+| 5. Train tokenizer | 48k vocab SentencePiece BPE on 2 GB diverse sample with byte fallback |
+| 6. Mix and shard | Domain-weighted mixing (45% web, 15% wiki, 15% code, 10% Q&A, etc.) then tokenization |
+| 7. Pretrain | 200k steps, 500M parameters |
+| 8. Synthetic instruct | Generate 50k instruction pairs using Claude API (optional) |
+| 9. Build instruct shards | Multi-turn loss masking across all instruct sources |
+| 10. Finetune | 30k steps with masked loss |
+| 11. Test | Inference on benchmark prompts |
 
 Run the full pipeline:
 
@@ -84,6 +85,7 @@ Run individual stages:
 
 ```bash
 python scripts/run_1.1.py --stage download
+python scripts/run_1.1.py --stage classifiers
 python scripts/run_1.1.py --stage quality
 python scripts/run_1.1.py --stage dedup
 python scripts/run_1.1.py --stage tokenizer

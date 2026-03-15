@@ -23,10 +23,10 @@ def sample_corpus(raw_dir: Path, output_path: Path, target_mb: int = 2000):
         ("arxiv_clean.txt", 0.05),
     ]
 
-    v4_raw = ROOT / "data" / "raw_v4"
+    old_raw = ROOT / "data" / "raw_1.0"
     fallback_sources = [
-        (v4_raw / "pretrain_corpus.txt", 0.30),
-        (v4_raw / "fineweb_edu_corpus.txt", 0.20),
+        (old_raw / "pretrain_corpus.txt", 0.30),
+        (old_raw / "fineweb_edu_corpus.txt", 0.20),
     ]
 
     sources = []
@@ -154,7 +154,7 @@ def main():
     parser.add_argument("--output", type=str, default=str(ROOT / "data" / "tokenizer_1.1"))
     parser.add_argument("--vocab-size", type=int, default=48000)
     parser.add_argument("--sample-mb", type=int, default=2000)
-    parser.add_argument("--compare-old", type=str, default=str(ROOT / "data" / "tokenizer_v4.model"))
+    parser.add_argument("--compare-old", type=str, default=str(ROOT / "data" / "tokenizer_1.0.model"))
     args = parser.parse_args()
 
     raw_dir = Path(args.raw_dir)

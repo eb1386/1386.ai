@@ -17,7 +17,7 @@ MODEL_REGISTRY = {
         "name": "Plasma 1.0",
         "config": ROOT / "configs" / "finetune_1.0.yaml",
         "checkpoint": ROOT / "checkpoints" / "finetune_1.0_final.pt",
-        "tokenizer": ROOT / "data" / "tokenizer_v4.model",
+        "tokenizer": ROOT / "data" / "tokenizer_1.0.model",
         "params": "235M",
         "multiturn": False,
     },
@@ -26,7 +26,7 @@ MODEL_REGISTRY = {
         "config": ROOT / "configs" / "finetune_1.1.yaml",
         "checkpoint": ROOT / "checkpoints" / "finetune_1.1_final.pt",
         "tokenizer": ROOT / "data" / "tokenizer_1.1.model",
-        "tokenizer_fallback": ROOT / "data" / "tokenizer_v4.model",
+        "tokenizer_fallback": ROOT / "data" / "tokenizer_1.0.model",
         "params": "500M",
         "multiturn": True,
     },
@@ -53,7 +53,7 @@ class ModelManager:
             elif info.get("tokenizer_fallback") and info["tokenizer_fallback"].exists():
                 tok_path = info["tokenizer_fallback"]
         if tok_path is None:
-            tok_path = ROOT / "data" / "tokenizer_v4.model"
+            tok_path = ROOT / "data" / "tokenizer_1.0.model"
         if tok_path.exists():
             self.tokenizer = spm.SentencePieceProcessor()
             self.tokenizer.load(str(tok_path))

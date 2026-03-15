@@ -29,5 +29,5 @@ training:
 
 data:
   shard_dir: data/shards_1.0
-  tokenizer_path: data/tokenizer_v4.model
+  tokenizer_path: data/tokenizer_1.0.model
   seq_len: 1024
