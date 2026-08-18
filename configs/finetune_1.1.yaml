@@ -11,18 +11,19 @@ model:
   rope_theta: 10000.0
 
 training:
-  batch_size: 16
+  batch_size: 8
   micro_batch_size: 2
-  gradient_accumulation: 8
+  gradient_accumulation: 4
   max_steps: 30000
-  warmup_steps: 500
-  learning_rate: 1.5e-5
-  min_lr: 1.5e-6
-  weight_decay: 0.1
-  max_grad_norm: 1.0
+  warmup_steps: 750
+  # bumped from 5e-6 -> 1e-5 to match Llama-2 SFT range (1e-5 to 2e-5)
+  learning_rate: 1.0e-5
+  min_lr: 1.0e-6
+  weight_decay: 0.05
+  max_grad_norm: 0.5
   precision: bf16
   gradient_checkpointing: true
-  checkpoint_interval: 5000
+  checkpoint_interval: 2000
   eval_interval: 1000
   log_interval: 50
   use_loss_mask: true

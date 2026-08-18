@@ -1,0 +1,9 @@
+{
+  "run_id": "plasma_1_1_full_rebuild",
+  "pretrain_shards": "C:\\Users\\Evan Borodow\\Downloads\\1386.ai\\data\\shards_plasma_1_1_full_rebuild_pretrain",
+  "sft_shards": "C:\\Users\\Evan Borodow\\Downloads\\1386.ai\\data\\shards_plasma_1_1_full_rebuild_sft",
+  "pretrain_config": "C:\\Users\\Evan Borodow\\Downloads\\1386.ai\\runs\\plasma_1_1_full_rebuild\\configs\\pretrain.yaml",
+  "finetune_config": "C:\\Users\\Evan Borodow\\Downloads\\1386.ai\\runs\\plasma_1_1_full_rebuild\\configs\\finetune.yaml",
+  "pretrain_final": "C:\\Users\\Evan Borodow\\Downloads\\1386.ai\\checkpoints\\pretrain_plasma_1_1_full_rebuild_pretrain_final.pt",
+  "finetune_final": "C:\\Users\\Evan Borodow\\Downloads\\1386.ai\\checkpoints\\finetune_plasma_1_1_full_rebuild_balanced_final.pt"
+}

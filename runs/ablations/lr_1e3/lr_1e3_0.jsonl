@@ -1,0 +1,33 @@
+{"step": 50, "loss": 8.1083, "lr": 0.0005, "grad_norm": 1.0837, "tok_per_sec": 13754, "dt": 119.12, "timestamp": 1786168081.881412}
+{"step": 100, "loss": 6.7022, "lr": 0.001, "grad_norm": 0.7294, "tok_per_sec": 13948, "dt": 117.46, "timestamp": 1786168199.3689563}
+{"step": 150, "loss": 6.1945, "lr": 0.00099728, "grad_norm": 0.5583, "tok_per_sec": 13947, "dt": 117.48, "timestamp": 1786168316.8692782}
+{"step": 200, "loss": 5.8657, "lr": 0.00098894, "grad_norm": 0.5355, "tok_per_sec": 14014, "dt": 116.91, "timestamp": 1786168433.8029077}
+{"step": 250, "loss": 5.6125, "lr": 0.00097508, "grad_norm": 0.5112, "tok_per_sec": 14021, "dt": 116.85, "timestamp": 1786168550.6773388}
+{"step": 300, "loss": 5.4286, "lr": 0.00095587, "grad_norm": 0.4267, "tok_per_sec": 14018, "dt": 116.88, "timestamp": 1786168667.579386}
+{"step": 350, "loss": 5.2578, "lr": 0.00093156, "grad_norm": 0.4362, "tok_per_sec": 14016, "dt": 116.89, "timestamp": 1786168784.4942727}
+{"step": 400, "loss": 5.1333, "lr": 0.00090245, "grad_norm": 0.3955, "tok_per_sec": 13982, "dt": 117.18, "timestamp": 1786168901.7016623}
+{"step": 450, "loss": 5.0444, "lr": 0.00086891, "grad_norm": 0.4996, "tok_per_sec": 13928, "dt": 117.63, "timestamp": 1786169019.3568676}
+{"step": 500, "loss": 4.9464, "lr": 0.00083136, "grad_norm": 0.3919, "tok_per_sec": 13967, "dt": 117.3, "timestamp": 1786169136.683094}
+{"step": 500, "val_loss": 5.0822, "val_ppl": 161.13, "timestamp": 1786169174.6688645}
+{"step": 550, "loss": 4.8452, "lr": 0.00079027, "grad_norm": 0.3839, "tok_per_sec": 9995, "dt": 163.92, "timestamp": 1786169300.6291077}
+{"step": 600, "loss": 4.7464, "lr": 0.00074616, "grad_norm": 0.3914, "tok_per_sec": 13007, "dt": 125.97, "timestamp": 1786169426.619682}
+{"step": 650, "loss": 4.6132, "lr": 0.00069958, "grad_norm": 0.3775, "tok_per_sec": 13004, "dt": 125.99, "timestamp": 1786169552.6338995}
+{"step": 700, "loss": 4.5709, "lr": 0.00065112, "grad_norm": 0.3463, "tok_per_sec": 13011, "dt": 125.92, "timestamp": 1786169678.5816765}
+{"step": 750, "loss": 4.4213, "lr": 0.00060139, "grad_norm": 0.3504, "tok_per_sec": 13003, "dt": 126.0, "timestamp": 1786169804.6105578}
+{"step": 800, "loss": 4.3721, "lr": 0.00055101, "grad_norm": 0.3394, "tok_per_sec": 13007, "dt": 125.96, "timestamp": 1786169930.599459}
+{"step": 850, "loss": 4.3193, "lr": 0.00050062, "grad_norm": 0.3832, "tok_per_sec": 13003, "dt": 126.0, "timestamp": 1786170056.6240945}
+{"step": 900, "loss": 4.2772, "lr": 0.00045085, "grad_norm": 0.3613, "tok_per_sec": 13006, "dt": 125.97, "timestamp": 1786170182.6208165}
+{"step": 950, "loss": 4.2345, "lr": 0.00040233, "grad_norm": 0.3396, "tok_per_sec": 13007, "dt": 125.96, "timestamp": 1786170308.6092498}
+{"step": 1000, "loss": 4.1617, "lr": 0.00035566, "grad_norm": 0.3334, "tok_per_sec": 13007, "dt": 125.97, "timestamp": 1786170434.6009474}
+{"step": 1000, "val_loss": 4.3722, "val_ppl": 79.22, "timestamp": 1786170472.3757849}
+{"step": 1050, "loss": 4.1693, "lr": 0.00031144, "grad_norm": 0.3331, "tok_per_sec": 10005, "dt": 163.75, "timestamp": 1786170598.3795779}
+{"step": 1100, "loss": 4.0742, "lr": 0.00027022, "grad_norm": 0.3255, "tok_per_sec": 13004, "dt": 125.99, "timestamp": 1786170724.3971112}
+{"step": 1150, "loss": 4.0738, "lr": 0.00023252, "grad_norm": 0.3184, "tok_per_sec": 13014, "dt": 125.89, "timestamp": 1786170850.3134816}
+{"step": 1200, "loss": 4.0141, "lr": 0.00019881, "grad_norm": 0.3104, "tok_per_sec": 13006, "dt": 125.98, "timestamp": 1786170976.3146043}
+{"step": 1250, "loss": 3.9788, "lr": 0.00016951, "grad_norm": 0.317, "tok_per_sec": 13004, "dt": 125.99, "timestamp": 1786171102.3317707}
+{"step": 1300, "loss": 3.9557, "lr": 0.000145, "grad_norm": 0.3231, "tok_per_sec": 13015, "dt": 125.89, "timestamp": 1786171228.2445664}
+{"step": 1350, "loss": 3.9559, "lr": 0.00012559, "grad_norm": 0.3128, "tok_per_sec": 13004, "dt": 126.0, "timestamp": 1786171354.2650013}
+{"step": 1400, "loss": 3.9592, "lr": 0.00011151, "grad_norm": 0.3085, "tok_per_sec": 13007, "dt": 125.96, "timestamp": 1786171480.2510626}
+{"step": 1450, "loss": 3.9494, "lr": 0.00010294, "grad_norm": 0.3321, "tok_per_sec": 13007, "dt": 125.96, "timestamp": 1786171606.2344687}
+{"step": 1500, "loss": 3.9069, "lr": 0.0001, "grad_norm": 0.3369, "tok_per_sec": 13002, "dt": 126.01, "timestamp": 1786171732.2672024}
+{"step": 1500, "val_loss": 4.1414, "val_ppl": 62.89, "timestamp": 1786171770.0379617}

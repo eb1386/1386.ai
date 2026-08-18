@@ -3,75 +3,106 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
   <title>1386.ai</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2022.4%2022.4%27%3E%3Cg%20fill%3D%27%230b0b0b%27%3E%3Crect%20x%3D%270.4%27%20y%3D%270.4%27%20width%3D%272.4%27%20height%3D%272.4%27%2F%3E%3Crect%20x%3D%276.8%27%20y%3D%270.4%27%20width%3D%272.4%27%20height%3D%272.4%27%2F%3E%3Crect%20x%3D%2713.2%27%20y%3D%270.4%27%20width%3D%272.4%27%20height%3D%272.4%27%2F%3E%3Crect%20x%3D%2719.6%27%20y%3D%270.4%27%20width%3D%272.4%27%20height%3D%272.4%27%2F%3E%3Crect%20x%3D%270.4%27%20y%3D%276.8%27%20width%3D%272.4%27%20height%3D%272.4%27%2F%3E%3Crect%20x%3D%276.8%27%20y%3D%276.8%27%20width%3D%272.4%27%20height%3D%272.4%27%2F%3E%3Crect%20x%3D%2710%27%20y%3D%276.8%27%20width%3D%272.4%27%20height%3D%272.4%27%2F%3E%3Crect%20x%3D%2713.2%27%20y%3D%276.8%27%20width%3D%272.4%27%20height%3D%272.4%27%2F%3E%3Crect%20x%3D%2719.6%27%20y%3D%276.8%27%20width%3D%272.4%27%20height%3D%272.4%27%2F%3E%3Crect%20x%3D%276.8%27%20y%3D%2710%27%20width%3D%272.4%27%20height%3D%272.4%27%2F%3E%3Crect%20x%3D%2713.2%27%20y%3D%2710%27%20width%3D%272.4%27%20height%3D%272.4%27%2F%3E%3Crect%20x%3D%270.4%27%20y%3D%2713.2%27%20width%3D%272.4%27%20height%3D%272.4%27%2F%3E%3Crect%20x%3D%276.8%27%20y%3D%2713.2%27%20width%3D%272.4%27%20height%3D%272.4%27%2F%3E%3Crect%20x%3D%2710%27%20y%3D%2713.2%27%20width%3D%272.4%27%20height%3D%272.4%27%2F%3E%3Crect%20x%3D%2713.2%27%20y%3D%2713.2%27%20width%3D%272.4%27%20height%3D%272.4%27%2F%3E%3Crect%20x%3D%2719.6%27%20y%3D%2713.2%27%20width%3D%272.4%27%20height%3D%272.4%27%2F%3E%3Crect%20x%3D%270.4%27%20y%3D%2719.6%27%20width%3D%272.4%27%20height%3D%272.4%27%2F%3E%3Crect%20x%3D%276.8%27%20y%3D%2719.6%27%20width%3D%272.4%27%20height%3D%272.4%27%2F%3E%3Crect%20x%3D%2713.2%27%20y%3D%2719.6%27%20width%3D%272.4%27%20height%3D%272.4%27%2F%3E%3Crect%20x%3D%2719.6%27%20y%3D%2719.6%27%20width%3D%272.4%27%20height%3D%272.4%27%2F%3E%3C%2Fg%3E%3Cg%20fill%3D%27%23e05200%27%3E%3Crect%20x%3D%2710%27%20y%3D%2710%27%20width%3D%272.4%27%20height%3D%272.4%27%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
   <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/katex.min.css">
+  <script defer src="/static/katex.min.js"></script>
+  <script defer src="/static/marked.min.js"></script>
+  <script defer src="/static/marked-highlight.umd.js"></script>
 </head>
 <body>
-  <div class="app">
 
-    <aside class="sidebar" id="sidebar">
-      <button class="sidebar-toggle" id="sidebar-toggle" aria-label="Toggle sidebar">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <line x1="3" y1="6" x2="21" y2="6"></line>
-          <line x1="3" y1="12" x2="21" y2="12"></line>
-          <line x1="3" y1="18" x2="21" y2="18"></line>
-        </svg>
+<div class="app" id="app">
+
+  <aside class="side" id="side">
+
+    <div class="side__top">
+      <div class="brand" id="brand"></div>
+      <button class="glyph" id="side-close" type="button"
+              data-icon="panel" aria-label="Close sidebar"></button>
+    </div>
+
+    <div class="side__head">
+      <button class="fresh" id="new-chat" type="button">
+        <span class="fresh__ico" data-icon="plus"></span>
+        <span>New chat</span>
       </button>
-      <div class="sidebar-content">
-        <div class="sidebar-header">
-          <button class="btn-new-chat" id="btn-new-chat" aria-label="New chat">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="12" y1="5" x2="12" y2="19"></line>
-              <line x1="5" y1="12" x2="19" y2="12"></line>
-            </svg>
-            new chat
-          </button>
-        </div>
-        <div class="chat-list" id="chat-list"></div>
-      </div>
-    </aside>
 
-    <main class="main">
-      <div class="topbar">
-        <div class="topbar-title" id="topbar-title">1386.ai</div>
+      <div class="find">
+        <span class="find__ico" data-icon="find" aria-hidden="true"></span>
+        <input id="find" type="search" placeholder="Search" aria-label="Search chats">
+      </div>
+    </div>
+
+    <nav class="side__list" id="list" aria-label="Chats">
+      <div id="chats"></div>
+      <p class="side__none" id="no-chats" hidden></p>
+    </nav>
+
+    <div class="side__foot">
+      <span class="pfp" id="pfp" aria-hidden="true"></span>
+      <span class="side__who">
+        <span class="side__user">Evan Borodow</span>
+        <span class="side__plan">Free Tier</span>
+      </span>
+    </div>
+  </aside>
+
+  <div class="veil" id="veil" aria-hidden="true"></div>
+
+  <main class="main is-empty" id="main">
+
+    <header class="bar">
+      <button class="glyph" id="side-open" type="button"
+              data-icon="panel" aria-label="Open sidebar"></button>
+
+      <div class="bar__end">
+        <span class="tempflag" id="tempflag" hidden>Temporary</span>
+        <button class="glyph" id="temp-toggle" type="button" data-icon="temp"
+                data-order="radial" aria-pressed="false" aria-label="Temporary chat"></button>
+      </div>
+    </header>
+
+    <div class="scroll" id="scroll">
+      <div class="hero" id="hero">
+        <div class="hero__mark" id="hero-mark"></div>
+        <h2 class="hero__ask" id="hero-ask">Where should we begin?</h2>
+        <div class="slot" id="slot-hero"></div>
+        <div class="tips" id="tips"></div>
+      </div>
+      <div class="thread" id="thread"></div>
+    </div>
+
+    <div class="slot slot--dock" id="slot-dock"></div>
+
+  </main>
+</div>
+
+<!-- moves between the hero and the dock as the conversation starts -->
+<form class="box" id="box" autocomplete="off">
+  <div class="box__field">
+    <textarea id="input" rows="1" placeholder="Ask 1386" aria-label="Message"></textarea>
+
+    <div class="box__controls">
+      <div class="pick" id="pick">
+        <button class="pick__btn" id="pick-btn" type="button"
+                aria-haspopup="listbox" aria-expanded="false" aria-label="Choose model">
+          <span id="pick-name">Plasma</span>
+          <span class="pick__chev" data-icon="chev" aria-hidden="true"></span>
+        </button>
+        <div class="pick__menu" id="pick-menu" role="listbox" hidden></div>
       </div>
 
-      <div class="messages" id="messages">
-        <div class="messages-inner" id="messages-inner">
-          <div class="empty-state" id="empty-state">
-            <svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-            </svg>
-            <div class="empty-state-text">1386.ai</div>
-            <div class="empty-state-sub">type a message below</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="input-area">
-        <div class="input-inner">
-          <div class="input-row">
-            <textarea id="input" rows="1" placeholder="Message..." aria-label="Message input"></textarea>
-            <button class="btn-send" id="btn-send" disabled aria-label="Send message">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="22" y1="2" x2="11" y2="13"></line>
-                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-              </svg>
-            </button>
-          </div>
-          <div class="input-footer">
-            <div class="model-selector">
-              <label for="model-select">model</label>
-              <select id="model-select" aria-label="Select model"></select>
-            </div>
-            <span class="input-hint">enter to send</span>
-          </div>
-        </div>
-      </div>
-    </main>
-
+      <button class="box__send" id="send" type="submit"
+              data-icon="send" disabled aria-label="Send"></button>
+    </div>
   </div>
+  <p class="box__note" id="note"></p>
+</form>
 
-  <script src="/static/app.js"></script>
+<script src="/static/prompts.js"></script>
+<script src="/static/app.js"></script>
 </body>
 </html>

@@ -12,12 +12,257 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+# load .env if present
+_env = ROOT / ".env"
+if _env.exists():
+    for line in _env.read_text().strip().split("\n"):
+        if "=" in line and not line.startswith("#"):
+            k, v = line.split("=", 1)
+            os.environ.setdefault(k.strip(), v.strip())
 
-# ── Prompt templates for diverse instruction generation ──────────────
+
+# ── prompt templates ──────────────────────────────────────────────────
+# 40% basic conversation + general knowledge
+# 60% technical (math, coding, reasoning, science, creative, instruction)
 
 CATEGORY_PROMPTS = {
-    "factual_qa": {
+    "conversational": {
         "weight": 0.20,
+        "system": "You are a friendly, helpful assistant. Be natural and conversational. Give direct, honest answers. Don't be overly formal or robotic. If someone greets you, greet them back warmly. If someone asks a simple question, give a simple answer.",
+        "seed_prompts": [
+            "{greeting}",
+            "Who is {famous_person}?",
+            "Tell me about {famous_person}.",
+            "What is {everyday_topic}?",
+            "How do you {everyday_task}?",
+            "What do you think about {opinion_topic}?",
+            "Can you help me with {help_topic}?",
+            "What's the deal with {trending_topic}?",
+            "Name {count} {list_topic}.",
+            "What is {food} made of?",
+            "What's your favorite {preference}?",
+            "How old is {famous_person}?",
+            "Is {claim_topic} true?",
+            "Why do people {human_behavior}?",
+            "What should I {advice_topic}?",
+        ],
+        "fill_vars": {
+            "greeting": [
+                "Hi!", "Hello!", "Hey, how are you?", "What's up?",
+                "Good morning!", "Hey there!", "Hi, what can you do?",
+                "Hello, nice to meet you.", "Hey, I need some help.",
+                "Hi! Tell me something interesting.",
+            ],
+            "famous_person": [
+                "Donald Trump", "Barack Obama", "Joe Biden",
+                "Elon Musk", "Jeff Bezos", "Mark Zuckerberg", "Bill Gates",
+                "Taylor Swift", "Beyonce", "Drake", "Kanye West",
+                "LeBron James", "Michael Jordan", "Cristiano Ronaldo", "Lionel Messi",
+                "Oprah Winfrey", "Kim Kardashian", "Dwayne Johnson",
+                "Tom Hanks", "Leonardo DiCaprio", "Scarlett Johansson",
+                "Steve Jobs", "Warren Buffett", "Nikola Tesla",
+                "George Washington", "Abraham Lincoln", "JFK",
+                "Queen Elizabeth", "Princess Diana", "Nelson Mandela",
+                "Martin Luther King Jr.", "Rosa Parks", "Harriet Tubman",
+                "Shakespeare", "Mozart", "Picasso", "Michael Jackson",
+                "Elvis Presley", "Muhammad Ali", "Bruce Lee",
+                "Albert Einstein", "Stephen Hawking", "Aristotle",
+            ],
+            "everyday_topic": [
+                "a mortgage", "a 401k", "credit score", "the stock market",
+                "cryptocurrency", "inflation", "a recession",
+                "climate change", "global warming", "renewable energy",
+                "the electoral college", "the Supreme Court", "Congress",
+                "a black hole", "a vaccine", "an antibiotic",
+                "WiFi", "Bluetooth", "the cloud", "AI",
+                "a calorie", "cholesterol", "blood pressure",
+                "the Olympics", "the World Cup", "the Super Bowl",
+                "a passport", "a visa", "jury duty",
+            ],
+            "everyday_task": [
+                "change a tire", "cook rice", "boil an egg",
+                "tie a tie", "iron a shirt", "do laundry",
+                "make coffee", "jumpstart a car", "unclog a drain",
+                "file taxes", "write a resume", "negotiate a salary",
+                "save money", "budget", "invest for beginners",
+            ],
+            "opinion_topic": [
+                "social media", "remote work", "electric cars",
+                "artificial intelligence", "space exploration",
+                "college education", "the housing market",
+                "streaming services", "fast food", "online dating",
+            ],
+            "help_topic": [
+                "planning a trip", "choosing a laptop", "learning to cook",
+                "getting in shape", "learning a language", "finding a job",
+                "starting a business", "writing an essay", "studying for exams",
+            ],
+            "trending_topic": [
+                "AI and ChatGPT", "electric vehicles", "cryptocurrency",
+                "remote work", "TikTok", "streaming wars",
+                "space tourism", "self-driving cars", "the metaverse",
+            ],
+            "count": ["3", "4", "5"],
+            "list_topic": [
+                "fruits", "colors", "countries in Europe", "planets",
+                "dog breeds", "sports", "programming languages",
+                "US presidents", "car brands", "movies from the 90s",
+                "fast food chains", "social media platforms",
+                "types of music", "famous scientists", "board games",
+            ],
+            "food": [
+                "bread", "cheese", "chocolate", "pasta", "sushi",
+                "pizza", "ice cream", "butter", "yogurt", "beer",
+                "wine", "coffee", "a hamburger", "a hot dog", "steak",
+            ],
+            "preference": [
+                "color", "season", "food", "movie genre", "sport",
+                "animal", "book", "music genre", "holiday", "day of the week",
+            ],
+            "claim_topic": [
+                "it that cracking knuckles causes arthritis",
+                "it that goldfish have a 3-second memory",
+                "it that we swallow spiders in our sleep",
+                "it that the Great Wall is visible from space",
+                "it that humans only use 10% of their brain",
+                "it that lightning never strikes twice",
+                "it that eating before swimming is dangerous",
+            ],
+            "human_behavior": [
+                "yawn when they see others yawn", "like watching sunsets",
+                "enjoy music", "procrastinate", "fear public speaking",
+                "laugh", "dream", "get nervous before tests",
+                "collect things", "prefer certain numbers",
+            ],
+            "advice_topic": [
+                "eat for breakfast", "do if I can't sleep",
+                "watch on Netflix", "read if I like sci-fi",
+                "name my dog", "major in at college",
+                "do on a first date", "wear to a job interview",
+                "learn first in programming",
+            ],
+        },
+    },
+    "general_knowledge": {
+        "weight": 0.20,
+        "system": "You are a knowledgeable assistant who knows about history, science, philosophy, sports, music, movies, pop culture, health, geography, and everyday life. Give clear, accurate, interesting answers. Be concise but informative.",
+        "seed_prompts": [
+            "Who won the {sports_event}?",
+            "What {movie_question}?",
+            "Tell me about {music_topic}.",
+            "What happened during {historical_period}?",
+            "Who is {celebrity} and what are they known for?",
+            "What is {philosophy_topic}?",
+            "How does {science_topic} work?",
+            "What is {health_topic} and why does it matter?",
+            "What country is {geography_q}?",
+            "What are the rules of {sport}?",
+            "Name some famous {famous_list}.",
+            "What was {decade} like?",
+            "Why is {cultural_thing} so popular?",
+            "What is the history of {history_topic}?",
+            "What are some interesting facts about {random_topic}?",
+        ],
+        "fill_vars": {
+            "sports_event": [
+                "2024 Super Bowl", "2022 World Cup", "last NBA Finals",
+                "last World Series", "2024 Olympics 100m dash",
+                "last Champions League final", "last Wimbledon",
+            ],
+            "movie_question": [
+                "is the highest grossing movie of all time",
+                "are the best movies of the 2000s",
+                "is the Godfather about", "are the Star Wars movies about",
+                "is the Matrix about", "movies has Leonardo DiCaprio been in",
+                "is Pulp Fiction about", "are the Harry Potter movies about",
+                "is the best horror movie", "is Marvel's most popular movie",
+            ],
+            "music_topic": [
+                "the Beatles", "hip hop history", "classical music",
+                "how jazz started", "the history of rock and roll",
+                "Taylor Swift's career", "Kendrick Lamar", "Bob Dylan",
+                "the evolution of pop music", "electronic music",
+                "country music", "reggae and Bob Marley",
+            ],
+            "historical_period": [
+                "World War II", "the American Civil War", "the Great Depression",
+                "the fall of Rome", "the Viking age", "the Roaring Twenties",
+                "the Space Race", "the Civil Rights Movement",
+                "the French Revolution", "ancient Egypt",
+                "the Ottoman Empire", "medieval Europe",
+                "the colonization of America", "the Cold War",
+            ],
+            "celebrity": [
+                "Oprah Winfrey", "Elon Musk", "Dwayne Johnson",
+                "Rihanna", "Jay-Z", "Tom Brady", "Serena Williams",
+                "Gordon Ramsay", "David Attenborough", "Keanu Reeves",
+                "Morgan Freeman", "Will Smith", "Emma Watson",
+                "Cristiano Ronaldo", "Tiger Woods", "Usain Bolt",
+            ],
+            "philosophy_topic": [
+                "stoicism", "existentialism", "nihilism",
+                "the trolley problem", "Plato's cave allegory",
+                "the meaning of life according to philosophers",
+                "free will vs determinism", "utilitarianism",
+                "the philosophy of Confucius", "Buddhist philosophy",
+            ],
+            "science_topic": [
+                "black holes", "how stars are born", "DNA",
+                "how the brain stores memories", "evolution",
+                "how magnets work", "nuclear fusion", "the speed of light",
+                "how vaccines train your immune system",
+                "why the sky is blue", "how earthquakes happen",
+            ],
+            "health_topic": [
+                "cholesterol", "blood pressure", "BMI",
+                "sleep and why we need 8 hours", "mental health",
+                "the gut microbiome", "how exercise affects the brain",
+                "vitamin D deficiency", "intermittent fasting",
+                "stress and its effects on the body",
+            ],
+            "geography_q": [
+                "known for the Great Barrier Reef",
+                "the largest by area", "home to the Amazon rainforest",
+                "shaped like a boot", "the most populated in the world",
+                "known for fjords", "where the Sahara desert is",
+                "the smallest in the world", "home to Mount Kilimanjaro",
+            ],
+            "sport": [
+                "basketball", "soccer", "football", "baseball",
+                "tennis", "golf", "hockey", "cricket",
+                "rugby", "boxing", "MMA",
+            ],
+            "famous_list": [
+                "inventors", "painters", "composers", "philosophers",
+                "scientists who changed the world", "explorers",
+                "Olympic athletes", "chess players", "comedians",
+                "authors", "filmmakers", "architects",
+            ],
+            "decade": [
+                "the 1920s", "the 1950s", "the 1960s",
+                "the 1970s", "the 1980s", "the 1990s", "the 2000s",
+            ],
+            "cultural_thing": [
+                "anime", "K-pop", "video games", "podcasts",
+                "superhero movies", "true crime content", "TikTok",
+                "reality TV", "coffee culture", "yoga",
+            ],
+            "history_topic": [
+                "the internet", "democracy", "money and banking",
+                "the Olympics", "writing systems", "mathematics",
+                "medicine", "space exploration", "aviation",
+                "the English language", "photography", "cinema",
+            ],
+            "random_topic": [
+                "octopuses", "the moon", "ancient Rome", "dreams",
+                "the deep ocean", "volcanoes", "the human eye",
+                "Antarctica", "bees", "lightning", "the pyramids",
+                "coffee", "dogs", "the Titanic", "dinosaurs",
+            ],
+        },
+    },
+    "factual_qa": {
+        "weight": 0.08,
         "system": "You are a knowledgeable assistant. Give accurate, concise answers. Keep responses under 150 words unless the question requires more detail.",
         "seed_prompts": [
             "What is {topic}?",
@@ -40,6 +285,10 @@ CATEGORY_PROMPTS = {
                 "democracy", "the Industrial Revolution", "black holes",
                 "the Roman Empire", "the Cold War", "antibiotics",
                 "tectonic plates", "the stock market", "the nitrogen cycle",
+                "gravity", "electricity", "magnetism", "evolution",
+                "the Big Bang", "relativity", "capitalism", "communism",
+                "the United Nations", "NATO", "the European Union",
+                "the internet", "a computer processor", "blockchain",
             ],
             "person": [
                 "Albert Einstein", "Marie Curie", "Isaac Newton",
@@ -47,6 +296,12 @@ CATEGORY_PROMPTS = {
                 "Leonardo da Vinci", "Aristotle", "Galileo",
                 "Alexander the Great", "Cleopatra", "Napoleon Bonaparte",
                 "Abraham Lincoln", "Martin Luther King Jr.", "Mahatma Gandhi",
+                "George Washington", "Thomas Jefferson", "Benjamin Franklin",
+                "Winston Churchill", "Franklin Roosevelt", "Julius Caesar",
+                "Genghis Khan", "Queen Victoria", "Frida Kahlo",
+                "Socrates", "Plato", "Confucius", "Buddha",
+                "Mozart", "Beethoven", "Shakespeare", "Hemingway",
+                "Steve Jobs", "Alan Turing", "Tim Berners-Lee",
             ],
             "thing_a": ["weather", "a virus", "speed", "mass", "an atom", "a republic", "a lake"],
             "thing_b": ["climate", "a bacteria", "velocity", "weight", "a molecule", "a democracy", "a sea"],
@@ -75,7 +330,7 @@ CATEGORY_PROMPTS = {
         },
     },
     "reasoning": {
-        "weight": 0.20,
+        "weight": 0.12,
         "system": "You are a helpful assistant that thinks step by step. Show your reasoning clearly before giving the final answer. Be concise but thorough.",
         "seed_prompts": [
             "If {scenario}, what would happen and why?",
@@ -132,7 +387,7 @@ CATEGORY_PROMPTS = {
         },
     },
     "creative": {
-        "weight": 0.10,
+        "weight": 0.07,
         "system": "You are a creative writing assistant. Write vivid, engaging text. Vary your sentence structure and word choice. Keep it natural and avoid cliches.",
         "seed_prompts": [
             "Write a short story (100-200 words) about {story_topic}.",
@@ -180,7 +435,7 @@ CATEGORY_PROMPTS = {
         },
     },
     "coding": {
-        "weight": 0.15,
+        "weight": 0.12,
         "system": "You are a programming assistant. Write clean, well-commented code. Explain your approach briefly before the code. Use Python unless another language is specified.",
         "seed_prompts": [
             "Write a function that {code_task}.",
@@ -245,7 +500,7 @@ CATEGORY_PROMPTS = {
         },
     },
     "multi_turn": {
-        "weight": 0.20,
+        "weight": 0.10,
         "system": "You are a helpful, conversational assistant. Engage naturally with follow-up questions. Keep responses concise but complete.",
         "seed_prompts": [
             # These are multi-turn: the generation prompt asks for a full conversation
@@ -286,7 +541,7 @@ CATEGORY_PROMPTS = {
         },
     },
     "summarization": {
-        "weight": 0.05,
+        "weight": 0.03,
         "system": "You are a summarization assistant. Create clear, accurate summaries that capture the key points. Adjust length to the complexity of the source material.",
         "seed_prompts": [
             "Summarize the key ideas of {topic} in 3-4 sentences.",
@@ -317,7 +572,7 @@ CATEGORY_PROMPTS = {
         },
     },
     "instruction_following": {
-        "weight": 0.10,
+        "weight": 0.08,
         "system": "You are a precise assistant that follows instructions exactly. Pay close attention to format requirements, constraints, and specific requests.",
         "seed_prompts": [
             "List exactly {number} reasons why {topic}. Number each reason.",
@@ -402,26 +657,22 @@ def format_as_conversation(response_text: str, user_prompt: str,
 def generate_batch_anthropic(prompts: list[tuple[str, str, str]],
                              model: str = "claude-haiku-4-5-20251001",
                              max_tokens: int = 1024) -> list[tuple[str, str, str]]:
-    """Generate responses using the Anthropic API.
-
-    Args:
-        prompts: List of (category, system, user_prompt) tuples.
-        model: Which Claude model to use. Haiku is cheapest and fast.
-        max_tokens: Max response length.
-
-    Returns:
-        List of (category, user_prompt, response) tuples.
-    """
+    """Generate responses using the Anthropic API with parallel requests."""
     try:
         import anthropic
     except ImportError:
-        print("ERROR: anthropic package required. Install with: pip install anthropic")
+        print("ERROR: pip install anthropic")
         sys.exit(1)
 
-    client = anthropic.Anthropic()  # reads ANTHROPIC_API_KEY from env
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    client = anthropic.Anthropic()
     results = []
 
-    for category, system, user_prompt in prompts:
+    fatal_errors = []
+
+    def _call(item):
+        category, system, user_prompt = item
         try:
             message = client.messages.create(
                 model=model,
@@ -429,11 +680,27 @@ def generate_batch_anthropic(prompts: list[tuple[str, str, str]],
                 system=system,
                 messages=[{"role": "user", "content": user_prompt}],
             )
-            response_text = message.content[0].text
-            results.append((category, user_prompt, response_text))
+            return category, user_prompt, message.content[0].text
         except Exception as e:
+            err = str(e)
+            if "credit balance" in err or "billing" in err.lower():
+                fatal_errors.append(err)
+                return "FATAL"
             print(f"    API error: {e}")
-            time.sleep(2)
+            return None
+
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        futures = {pool.submit(_call, p): p for p in prompts}
+        for fut in as_completed(futures):
+            result = fut.result()
+            if result == "FATAL":
+                pool.shutdown(wait=False, cancel_futures=True)
+                return "FATAL"
+            if result:
+                results.append(result)
+
+    if fatal_errors:
+        return "FATAL"
 
     return results
 
@@ -520,6 +787,12 @@ def main():
 
             results = generate_batch_anthropic(batch, model=args.model,
                                                max_tokens=args.max_tokens)
+
+            if results == "FATAL":
+                print(f"\n  Out of API credits. Stopping.")
+                print(f"  Generated {n_generated:,} samples so far.")
+                print(f"  Add credits and re-run with --resume to continue.")
+                return
 
             for category, user_prompt, response in results:
                 text = format_as_conversation(response, user_prompt, category)

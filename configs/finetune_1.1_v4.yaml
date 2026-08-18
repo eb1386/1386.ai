@@ -1,0 +1,59 @@
+# plasma 1.1 finetune -- v4 recipe (audit-driven sft rebuild)
+#
+# same base model, new data + mechanics. what changed vs v3 and why:
+#   data: sft_shards_1.1_v4 -- hh_helpful removed (trained hedging), ultrachat
+#         cut 80k->32k + 3-turn cap (was 41.6% of loss tokens, verbose drift),
+#         code instruct added (codealpaca+evolcode, v3 had ~0.8% code),
+#         identity scrubbed + synthetic plasma identity, cross-source dedup,
+#         refusal/hedge openings dropped, decontaminated vs benchmark AND
+#         the 309-prompt audit battery.
+#   eos:  after EVERY assistant turn (v3: once per conversation; model never
+#         learned to stop after an answer).
+#   bos:  at conversation start; doc_attention_bos_id builds a block-diagonal
+#         mask so packed conversations cannot attend to each other (v3 claimed
+#         this but attention was fully causal across the pack).
+# base: checkpoints/pretrain_1.1_v3_final.pt (passed via --finetune)
+# run:  powershell -File scripts\run_sft_v4.ps1   (from repo root)
+model:
+  vocab_size: 48000
+  hidden_size: 1280
+  num_layers: 26
+  num_heads: 20
+  num_kv_heads: 4
+  intermediate_size: 3584
+  max_seq_len: 1024
+  dropout: 0.0
+  rope_theta: 10000.0
+
+training:
+  batch_size: 32
+  micro_batch_size: 4
+  gradient_accumulation: 8
+  # steps set to ~3 epochs of the built set; recompute after build:
+  #   n_train_sequences / 32 * 3
+  max_steps: 9400
+  warmup_steps: 400
+  learning_rate: 2.0e-5
+  min_lr: 0.0
+  lr_schedule: cosine
+  weight_decay: 0.05
+  max_grad_norm: 1.0
+  betas: [0.9, 0.95]
+  optimizer: adamw
+  precision: bf16
+  gradient_checkpointing: true
+  compile: false
+  use_loss_mask: true
+  doc_attention_bos_id: 1
+  checkpoint_interval: 2000
+  keep_last_checkpoints: 4
+  eval_interval: 1000
+  log_interval: 50
+  val_sequences: 1024
+  val_batch_size: 8
+  checkpoint_prefix: 1.1_v4_ft_step
+
+data:
+  shard_dir: data/sft_shards_1.1_v4
+  tokenizer_path: data/tokenizer_1.1.model
+  seq_len: 1024

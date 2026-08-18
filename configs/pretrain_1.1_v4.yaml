@@ -1,0 +1,62 @@
+# plasma 1.1 pretrain -- v4 = same run, BALANCED data mixture from step ~185k on.
+#
+# why the switch: probing the v3 base showed it learned CATEGORIES but not
+# ENTITIES ("Messi is a professional basketball player", "Taylor Swift is a
+# British television presenter"). FineWeb-Edu's educational filter strips
+# sport / celebrity / entertainment coverage, so those facts were never in the
+# data. this mixture keeps FineWeb-Edu as the reasoning backbone and adds the
+# two entity-dense sources:
+#     fineweb_general 15%  unfiltered crawl (safety-filtered: slurs/adult/spam,
+#                          measured 0.96% drop rate)
+#     wikipedia       18%  up from 10% -- best "who is X" source
+# arxiv dropped to 0: lowest value per parameter at 521M for this goal.
+#
+# NO restart. WSD holds LR constant at 6e-4, so resuming at step 185,000 with a
+# different shard_dir continues the schedule unbroken. val_0000.bin in the v4
+# corpus is a COPY of the v3 val set, so val_ppl stays comparable across the switch.
+#
+# resume command:
+#   python -m src.train.train --config configs/pretrain_1.1_v4.yaml \
+#     --resume checkpoints/1.1_v3_step_185000.pt --log-path logs/pretrain_v3.jsonl
+model:
+  vocab_size: 48000
+  hidden_size: 1280
+  num_layers: 26
+  num_heads: 20
+  num_kv_heads: 4
+  intermediate_size: 3584
+  max_seq_len: 1024
+  dropout: 0.0
+  rope_theta: 10000.0
+
+training:
+  batch_size: 32
+  micro_batch_size: 4
+  gradient_accumulation: 8
+  max_steps: 460000
+  warmup_steps: 2000
+  learning_rate: 6.0e-4
+  min_lr: 0.0
+  lr_schedule: wsd
+  decay_frac: 0.1
+  decay_shape: 1-sqrt
+  weight_decay: 0.1
+  max_grad_norm: 1.0
+  betas: [0.9, 0.95]
+  optimizer: adamw
+  precision: bf16
+  gradient_checkpointing: true
+  compile: true
+  depth_scaled_init: false
+  checkpoint_interval: 5000
+  keep_last_checkpoints: 4
+  eval_interval: 5000
+  log_interval: 50
+  val_sequences: 2048
+  val_batch_size: 8
+  checkpoint_prefix: 1.1_v3_step
+
+data:
+  shard_dir: data/shards_1.1_v4
+  tokenizer_path: data/tokenizer_1.1.model
+  seq_len: 1024

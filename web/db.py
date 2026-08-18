@@ -35,6 +35,10 @@ def init_db():
         );
         CREATE INDEX IF NOT EXISTS idx_messages_chat ON messages(chat_id);
     """)
+    # added later, so migrate existing databases in place
+    cols = {r["name"] for r in conn.execute("PRAGMA table_info(chats)")}
+    if "pinned" not in cols:
+        conn.execute("ALTER TABLE chats ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0")
     conn.commit()
     conn.close()
 
@@ -55,10 +59,18 @@ def create_chat(model_id="plasma-1.0"):
 def list_chats():
     conn = get_db()
     rows = conn.execute(
-        "SELECT id, title, model_id, created_at, updated_at FROM chats ORDER BY updated_at DESC"
+        "SELECT id, title, model_id, created_at, updated_at, pinned FROM chats "
+        "ORDER BY pinned DESC, updated_at DESC"
     ).fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
+
+def set_pinned(chat_id, pinned):
+    conn = get_db()
+    conn.execute("UPDATE chats SET pinned = ? WHERE id = ?", (1 if pinned else 0, chat_id))
+    conn.commit()
+    conn.close()
 
 
 def get_chat(chat_id):

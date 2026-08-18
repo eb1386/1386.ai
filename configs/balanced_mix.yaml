@@ -1,0 +1,35 @@
+# BALANCED mixture for the remaining ~62% of pretraining.
+#
+# why: the edu-filtered corpus produced strong reasoning benchmarks (+10 pts,
+# 6/6 sweep vs the old base) but almost no entity/pop knowledge -- the model
+# said Messi plays basketball and Taylor Swift is a British TV presenter,
+# because FineWeb-Edu's educational filter strips entertainment, sport and
+# celebrity content.
+#
+# this keeps FineWeb-Edu as the backbone so reasoning does not collapse, and
+# adds two entity-dense sources:
+#   fineweb_general  15%  unfiltered crawl -> pop culture, sport, news, people
+#   wikipedia        18%  (up from 10) -> the single best "who is X" source
+# arxiv is dropped: at 521M params it is the lowest-value slice for this goal.
+#
+# NO restart is required. WSD holds the LR constant, so training resumes from
+# the current checkpoint with this corpus and the schedule continues cleanly.
+
+weights:
+  fineweb_edu:     0.25
+  fineweb_general: 0.15
+  wikipedia:       0.18
+  code:            0.14
+  cosmopedia:      0.10
+  math:            0.09
+  stackexchange:   0.09
+  arxiv:           0.0
+
+max_epochs:
+  fineweb_edu:     1
+  fineweb_general: 1
+  wikipedia:       3
+  code:            2
+  cosmopedia:      2
+  math:            2
+  stackexchange:   2

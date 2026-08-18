@@ -15,12 +15,10 @@ sys.path.insert(0, str(ROOT))
 def sample_corpus(raw_dir: Path, output_path: Path, target_mb: int = 2000):
     """Sample from all sources for tokenizer training."""
     source_configs = [
-        ("fineweb_edu_hq.txt", 0.50),
-        ("wikipedia_clean.txt", 0.15),
-        ("stackexchange_clean.txt", 0.10),
+        ("fineweb_edu_hq.txt", 0.55),
+        ("wikipedia_clean.txt", 0.20),
         ("code_clean.txt", 0.10),
-        ("books_clean.txt", 0.10),
-        ("arxiv_clean.txt", 0.05),
+        ("arxiv_clean.txt", 0.15),
     ]
 
     old_raw = ROOT / "data" / "raw_1.0"

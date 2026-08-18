@@ -5,6 +5,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from .config import ModelConfig
+from .normalization import RMSNorm
 from .rope import apply_rotary_emb
 
 
@@ -22,6 +23,13 @@ class CausalAttention(nn.Module):
         self.o_proj = nn.Linear(config.num_heads * self.head_dim, config.hidden_size, bias=False)
         self.dropout = config.dropout
 
+        # qk-norm caps attention-logit growth (olmo-2/gemma-2 style); off for
+        # 1.x checkpoints, on for 1.2
+        self.use_qk_norm = getattr(config, "qk_norm", False)
+        if self.use_qk_norm:
+            self.q_norm = RMSNorm(self.head_dim)
+            self.k_norm = RMSNorm(self.head_dim)
+
     def forward(
         self,
         x: torch.Tensor,
@@ -35,6 +43,10 @@ class CausalAttention(nn.Module):
         q = self.q_proj(x).reshape(B, S, self.num_heads, self.head_dim).transpose(1, 2)
         k = self.k_proj(x).reshape(B, S, self.num_kv_heads, self.head_dim).transpose(1, 2)
         v = self.v_proj(x).reshape(B, S, self.num_kv_heads, self.head_dim).transpose(1, 2)
+
+        if self.use_qk_norm:
+            q = self.q_norm(q)
+            k = self.k_norm(k)
 
         q = apply_rotary_emb(q, freqs_cis)
         k = apply_rotary_emb(k, freqs_cis)
@@ -56,11 +68,20 @@ class CausalAttention(nn.Module):
             v = v.unsqueeze(2).expand(-1, -1, self.num_kv_groups, -1, -1)
             v = v.reshape(B, self.num_heads, KV_S, self.head_dim)
 
+        attn_mask = mask
+        is_causal = mask is None and kv_cache is None
+        if mask is None and kv_cache is not None and S > 1:
+            total_s = k.shape[2]
+            past_s = total_s - S
+            q_pos = torch.arange(past_s, past_s + S, device=x.device).unsqueeze(1)
+            k_pos = torch.arange(total_s, device=x.device).unsqueeze(0)
+            attn_mask = k_pos <= q_pos
+
         out = F.scaled_dot_product_attention(
             q, k, v,
-            attn_mask=mask,
+            attn_mask=attn_mask,
             dropout_p=self.dropout if self.training else 0.0,
-            is_causal=mask is None and kv_cache is None,
+            is_causal=is_causal,
         )
 
         out = out.transpose(1, 2).reshape(B, S, self.num_heads * self.head_dim)

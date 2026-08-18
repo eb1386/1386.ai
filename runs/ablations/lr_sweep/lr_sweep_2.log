@@ -1,0 +1,55 @@
+Device: cuda
+GPU: NVIDIA GeForce RTX 5080
+VRAM: 17.1 GB
+C:\Users\Evan Borodow\AppData\Local\Programs\Python\Python310\lib\site-packages\torch\nn\modules\module.py:1369: UserWarning: expandable_segments not supported on this platform (Triggered internally at C:\actions-runner\_work\pytorch\pytorch\c10/cuda/CUDAAllocatorConfig.h:39.)
+  return t.to(
+Parameters: 521,570,560
+LR schedule: CosineScheduler (peak 6.00e-04 -> min 6.00e-05)
+Validation: 2,048 sequences (of 73,349), batch 8
+
+Training config:
+  Max steps:       1500
+  Micro batch:     4
+  Grad accum:      8
+  Effective batch: 32
+  Seq len:         1024
+  Precision:       bf16
+  Grad checkpoint: True
+  Loss masking:    False
+  Ckpt prefix:     abl_lr_sweep_2
+
+step     50 | loss 8.3210 | lr 3.00e-04 | grad_norm 1.00 | 13,835 tok/s
+step    100 | loss 6.7140 | lr 6.00e-04 | grad_norm 0.89 | 13,981 tok/s
+step    150 | loss 6.1934 | lr 5.98e-04 | grad_norm 0.83 | 13,975 tok/s
+step    200 | loss 5.8643 | lr 5.93e-04 | grad_norm 0.60 | 13,975 tok/s
+step    250 | loss 5.6069 | lr 5.85e-04 | grad_norm 0.54 | 13,956 tok/s
+step    300 | loss 5.4130 | lr 5.74e-04 | grad_norm 0.50 | 13,901 tok/s
+step    350 | loss 5.2311 | lr 5.59e-04 | grad_norm 0.48 | 13,899 tok/s
+step    400 | loss 5.0850 | lr 5.41e-04 | grad_norm 0.46 | 13,909 tok/s
+step    450 | loss 4.9820 | lr 5.21e-04 | grad_norm 0.52 | 13,904 tok/s
+step    500 | loss 4.8557 | lr 4.99e-04 | grad_norm 0.44 | 13,902 tok/s
+  [eval] step 500 | val_loss 4.9753 | val_ppl 144.79
+step    550 | loss 4.7259 | lr 4.74e-04 | grad_norm 0.41 | 10,519 tok/s
+step    600 | loss 4.6159 | lr 4.48e-04 | grad_norm 0.46 | 13,906 tok/s
+step    650 | loss 4.4804 | lr 4.20e-04 | grad_norm 0.41 | 13,904 tok/s
+step    700 | loss 4.4478 | lr 3.91e-04 | grad_norm 0.39 | 13,906 tok/s
+step    750 | loss 4.3085 | lr 3.61e-04 | grad_norm 0.39 | 13,908 tok/s
+step    800 | loss 4.2681 | lr 3.31e-04 | grad_norm 0.41 | 13,903 tok/s
+step    850 | loss 4.2216 | lr 3.00e-04 | grad_norm 0.40 | 13,909 tok/s
+step    900 | loss 4.1851 | lr 2.71e-04 | grad_norm 0.40 | 13,906 tok/s
+step    950 | loss 4.1514 | lr 2.41e-04 | grad_norm 0.38 | 13,902 tok/s
+step   1000 | loss 4.0804 | lr 2.13e-04 | grad_norm 0.39 | 13,906 tok/s
+  [eval] step 1000 | val_loss 4.2891 | val_ppl 72.90
+step   1050 | loss 4.0936 | lr 1.87e-04 | grad_norm 0.37 | 10,515 tok/s
+step   1100 | loss 3.9998 | lr 1.62e-04 | grad_norm 0.37 | 13,902 tok/s
+step   1150 | loss 4.0051 | lr 1.40e-04 | grad_norm 0.38 | 13,904 tok/s
+step   1200 | loss 3.9470 | lr 1.19e-04 | grad_norm 0.34 | 13,903 tok/s
+step   1250 | loss 3.9145 | lr 1.02e-04 | grad_norm 0.36 | 13,903 tok/s
+step   1300 | loss 3.8946 | lr 8.70e-05 | grad_norm 0.35 | 13,905 tok/s
+step   1350 | loss 3.8962 | lr 7.54e-05 | grad_norm 0.37 | 13,902 tok/s
+step   1400 | loss 3.9001 | lr 6.69e-05 | grad_norm 0.36 | 13,904 tok/s
+step   1450 | loss 3.8938 | lr 6.18e-05 | grad_norm 0.37 | 13,849 tok/s
+step   1500 | loss 3.8514 | lr 6.00e-05 | grad_norm 0.40 | 13,924 tok/s
+  [eval] step 1500 | val_loss 4.0834 | val_ppl 59.35
+
+Training complete. Final checkpoint: checkpoints/pretrain_abl_lr_sweep_2_final.pt

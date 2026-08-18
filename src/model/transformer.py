@@ -23,6 +23,7 @@ class TransformerBlock(nn.Module):
         self,
         x: torch.Tensor,
         freqs_cis: torch.Tensor,
+        mask: torch.Tensor | None = None,
         kv_cache: tuple[torch.Tensor, torch.Tensor] | None = None,
         use_cache: bool = False,
     ) -> torch.Tensor | tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor]]:
@@ -34,7 +35,7 @@ class TransformerBlock(nn.Module):
             x = x + self.ffn(self.ffn_norm(x))
             return x, new_cache
 
-        x = x + self.attn(self.attn_norm(x), freqs_cis)
+        x = x + self.attn(self.attn_norm(x), freqs_cis, mask=mask)
         x = x + self.ffn(self.ffn_norm(x))
         return x
 
@@ -72,6 +73,7 @@ class Transformer(nn.Module):
         tokens: torch.Tensor,
         start_pos: int = 0,
         kv_caches: list[tuple[torch.Tensor, torch.Tensor]] | None = None,
+        attn_mask: torch.Tensor | None = None,
     ) -> torch.Tensor | tuple[torch.Tensor, list[tuple[torch.Tensor, torch.Tensor]]]:
         B, S = tokens.shape
         x = self.tok_emb(tokens)
@@ -90,12 +92,26 @@ class Transformer(nn.Module):
 
         for layer in self.layers:
             if self.gradient_checkpointing and self.training:
-                x = checkpoint(layer, x, freqs, use_reentrant=False)
+                x = checkpoint(layer, x, freqs, attn_mask, use_reentrant=False)
             else:
-                x = layer(x, freqs)
+                x = layer(x, freqs, mask=attn_mask)
 
         x = self.norm(x)
         return self.output(x)
+
+    @staticmethod
+    def doc_attention_mask(tokens: torch.Tensor, bos_id: int) -> torch.Tensor:
+        """block-diagonal causal mask from bos markers in packed sequences.
+
+        each conversation starts with bos, so cumsum gives a per-position
+        document index; a position may attend only to earlier positions in
+        the SAME document. shape (B, 1, S, S) bool for sdpa.
+        """
+        B, S = tokens.shape
+        doc = torch.cumsum((tokens == bos_id).long(), dim=1)
+        same = doc.unsqueeze(2) == doc.unsqueeze(1)
+        causal = torch.ones(S, S, dtype=torch.bool, device=tokens.device).tril()
+        return (same & causal).unsqueeze(1)
 
     def count_parameters(self) -> int:
         return sum(p.numel() for p in self.parameters() if p.requires_grad)

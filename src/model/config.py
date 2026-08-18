@@ -14,6 +14,7 @@ class ModelConfig:
     max_seq_len: int = 512
     dropout: float = 0.0
     rope_theta: float = 10000.0
+    qk_norm: bool = False
 
     @property
     def head_dim(self) -> int:
@@ -24,7 +25,8 @@ class ModelConfig:
         return self.num_heads // self.num_kv_heads
 
     def param_count_estimate(self) -> int:
-        embed = self.vocab_size * self.hidden_size * 2  # embed + output
+        # output weight is tied to the embedding, count once
+        embed = self.vocab_size * self.hidden_size
         attn = self.num_layers * (
             self.hidden_size * self.hidden_size  # Q
             + self.hidden_size * (self.head_dim * self.num_kv_heads) * 2  # K, V

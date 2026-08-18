@@ -1,0 +1,36 @@
+data:
+  seq_len: 1024
+  shard_dir: data/shards_1.1_v2
+  tokenizer_path: data/tokenizer_1.1.model
+model:
+  dropout: 0.0
+  hidden_size: 1280
+  intermediate_size: 3584
+  max_seq_len: 1024
+  num_heads: 20
+  num_kv_heads: 4
+  num_layers: 26
+  rope_theta: 10000.0
+  vocab_size: 48000
+training:
+  batch_size: 32
+  checkpoint_interval: 1000000000
+  checkpoint_prefix: abl_step
+  compile: true
+  depth_scaled_init: false
+  eval_interval: 1000000000
+  gradient_accumulation: 8
+  gradient_checkpointing: true
+  keep_last_checkpoints: 0
+  learning_rate: 0.00012
+  log_interval: 1
+  max_grad_norm: 1.0
+  max_steps: 6
+  micro_batch_size: 4
+  min_lr: 1.2e-05
+  optimizer: adamw
+  precision: bf16
+  val_batch_size: 8
+  val_sequences: 64
+  warmup_steps: 2
+  weight_decay: 0.1

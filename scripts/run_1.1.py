@@ -7,6 +7,7 @@ import hashlib
 import json
 import math
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -15,6 +16,13 @@ from pathlib import Path
 
 import numpy as np
 import yaml
+
+# windows console encoding fix
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    pass
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
@@ -27,8 +35,8 @@ PRETRAIN_SHARDS  = ROOT / "data" / "shards_1.1"
 INSTRUCT_SHARDS  = ROOT / "data" / "instruct_shards_1.1"
 TOKENIZER_OLD    = ROOT / "data" / "tokenizer_1.0.model"
 TOKENIZER_NEW    = ROOT / "data" / "tokenizer_1.1"
-QUALITY_MODEL    = ROOT / "data" / "quality_classifier.bin"
-TOXICITY_MODEL   = ROOT / "data" / "toxicity_classifier.bin"
+QUALITY_MODEL    = ROOT / "data" / "quality_classifier.pkl"
+TOXICITY_MODEL   = ROOT / "data" / "toxicity_classifier.pkl"
 CKPT_DIR         = ROOT / "checkpoints"
 LOG_DIR          = ROOT / "logs"
 
@@ -59,6 +67,87 @@ def elapsed_str(seconds):
     return f"{h}h {m}m {s}s"
 
 
+# ── stage -1: verify + repair ───────────────────────────────────────
+def _ckpt_step(p):
+    import re
+    m = re.search(r"_(\d+)\.pt$", p.name)
+    return int(m.group(1)) if m else 0
+
+
+def stage_verify():
+    """Detect corruption from the pre-fix finetune-resume bug and repair.
+
+    Symptom: an older bug in train.py wrote finetune weights to
+    pretrain_1.1_final.pt when --resume (not --finetune) was used.
+    Detect by reading the saved 'step' from inside the checkpoint
+    against the pretrain config's max_steps; if low, restore the
+    pretrain final from the highest-step pretrain checkpoint.
+    Also wipe finetune artifacts that were trained with bad masks.
+    """
+    banner("Stage -1: Verify pretrain integrity + reset finetune state")
+
+    pretrain_ckpt = CKPT_DIR / "pretrain_1.1_final.pt"
+    pretrain_steps = []
+    for p in CKPT_DIR.glob("1.1_step_*.pt"):
+        pretrain_steps.append(p)
+    pretrain_steps.sort(key=_ckpt_step)
+
+    needs_restore = False
+    if pretrain_ckpt.exists():
+        try:
+            import torch
+            ckpt = torch.load(str(pretrain_ckpt), map_location="cpu", weights_only=False)
+            saved_step = int(ckpt.get("step", 0))
+            saved_prefix = (
+                ckpt.get("config", {}).get("training", {}).get("checkpoint_prefix", "")
+            )
+            print(f"  pretrain_1.1_final.pt: step={saved_step:,} prefix={saved_prefix!r}")
+
+            if "_ft" in saved_prefix:
+                print("  WARNING: pretrain_1.1_final.pt was written by a finetune run "
+                      "(checkpoint_prefix contains '_ft'). It is corrupted.")
+                needs_restore = True
+            elif saved_step < 100_000:
+                print(f"  WARNING: pretrain step={saved_step} looks too low — "
+                      "likely overwritten by old finetune-resume bug.")
+                needs_restore = True
+            else:
+                print("  pretrain checkpoint looks healthy")
+        except Exception as e:
+            print(f"  ERROR reading pretrain checkpoint: {e}")
+            needs_restore = True
+    else:
+        print("  pretrain_1.1_final.pt missing — will need to be created")
+        needs_restore = True
+
+    if needs_restore:
+        if pretrain_steps:
+            best = pretrain_steps[-1]
+            print(f"  Restoring pretrain_1.1_final.pt from {best.name}")
+            shutil.copy2(str(best), str(pretrain_ckpt))
+        else:
+            print("  No 1.1_step_*.pt to restore from. Pretrain stage will start fresh.")
+            if pretrain_ckpt.exists():
+                pretrain_ckpt.unlink()
+                print("  Removed corrupted pretrain_1.1_final.pt")
+
+    # wipe finetune artifacts (masks were broken; data was insufficient).
+    # also wipe instruct shards built with the broken mask builder.
+    finetune_ckpt = CKPT_DIR / "finetune_1.1_final.pt"
+    if finetune_ckpt.exists():
+        print(f"  Removing {finetune_ckpt.name} (will be rebuilt with correct masks)")
+        finetune_ckpt.unlink()
+
+    ft_steps = list(CKPT_DIR.glob("1.1_ft_step_*.pt"))
+    for p in ft_steps:
+        print(f"  Removing {p.name}")
+        p.unlink()
+
+    if INSTRUCT_SHARDS.exists() and any(INSTRUCT_SHARDS.iterdir()):
+        print(f"  Removing instruct_shards_1.1/ (built with broken mask builder)")
+        shutil.rmtree(str(INSTRUCT_SHARDS))
+
+
 # ── stage 0: cleanup ────────────────────────────────────────────────
 def stage_cleanup():
     banner("Stage 0: Cleanup")
@@ -66,15 +155,22 @@ def stage_cleanup():
     freed = 0
     if CKPT_DIR.exists():
         for pattern in ["1.1_step_*.pt", "1.1_ft_step_*.pt"]:
-            ckpts = list(CKPT_DIR.glob(pattern))
-            if ckpts:
-                for ckpt in ckpts:
+            import re
+            def _step_num(p):
+                m = re.search(r'_(\d+)\.pt$', p.name)
+                return int(m.group(1)) if m else 0
+            ckpts = sorted(CKPT_DIR.glob(pattern), key=_step_num)
+            if len(ckpts) > 1:
+                # keep latest, delete rest
+                for ckpt in ckpts[:-1]:
                     freed += ckpt.stat().st_size
                     ckpt.unlink()
-                print(f"  Deleted {len(ckpts)} checkpoints: {pattern}")
+                print(f"  Cleaned {len(ckpts) - 1} old checkpoints, kept {ckpts[-1].name}")
+            elif ckpts:
+                print(f"  [kept] {ckpts[0].name} (resume)")
 
     if freed > 0:
-        print(f"\n  Freed {freed / 1e9:.1f} GB")
+        print(f"  Freed {freed / 1e9:.1f} GB")
     else:
         print("  Nothing to clean up")
 
@@ -103,7 +199,7 @@ def stage_download():
     _download_code(load_dataset)
     _download_arxiv(load_dataset)
 
-    print(f"\n{'─' * 40}")
+    print(f"\n{'-' * 40}")
     print("Download summary:")
     total = 0
     for name in ["fineweb_edu_hq.txt", "wikipedia_clean.txt",
@@ -118,7 +214,7 @@ def stage_download():
 
 def _download_fineweb(load_dataset):
     path = RAW_DIR / "fineweb_edu_hq.txt"
-    if path.exists() and path.stat().st_size >= FINEWEB_TARGET * 0.7:
+    if path.exists() and path.stat().st_size >= FINEWEB_TARGET * 0.5:
         print(f"[skip] FineWeb-Edu HQ ({path.stat().st_size / 1e9:.2f} GB)")
         return
 
@@ -130,7 +226,7 @@ def _download_fineweb(load_dataset):
 
     try:
         ds = load_dataset("HuggingFaceFW/fineweb-edu", name="sample-10BT",
-                          split="train", streaming=True, trust_remote_code=True)
+                          split="train", streaming=True, trust_remote_code=False)
 
         with open(path, "w", encoding="utf-8") as f:
             for example in ds:
@@ -171,7 +267,7 @@ def _download_wikipedia(load_dataset):
 
     try:
         ds = load_dataset("wikimedia/wikipedia", "20231101.en",
-                          split="train", streaming=True, trust_remote_code=True)
+                          split="train", streaming=True, trust_remote_code=False)
 
         with open(path, "w", encoding="utf-8") as f:
             for example in ds:
@@ -205,8 +301,8 @@ def _download_stackexchange(load_dataset):
     t0 = time.time()
 
     try:
-        ds = load_dataset("HuggingFaceTB/stack-exchange-preferences",
-                          split="train", streaming=True, trust_remote_code=True)
+        ds = load_dataset("HuggingFaceH4/stack-exchange-preferences",
+                          split="train", streaming=True, trust_remote_code=False)
 
         with open(path, "w", encoding="utf-8") as f:
             for example in ds:
@@ -256,7 +352,7 @@ def _download_code(load_dataset):
     doc_count = 0
     skipped = 0
     t0 = time.time()
-    languages = ["python", "javascript", "typescript"]
+    languages = ["python", "javascript"]
 
     try:
         with open(path, "w", encoding="utf-8") as f:
@@ -267,10 +363,36 @@ def _download_code(load_dataset):
                 print(f"\n  Downloading {lang}...")
 
                 try:
-                    ds = load_dataset("bigcode/starcoderdata", data_dir=lang,
-                                      split="train", streaming=True, trust_remote_code=True)
+                    try:
+                        ds = load_dataset(
+                            "bigcode/starcoderdata",
+                            data_dir=lang,
+                            split="train",
+                            streaming=True,
+                            trust_remote_code=False,
+                        )
+                        field = "content"
+                    except Exception as e:
+                        print(f"    starcoderdata unavailable for {lang}: {e}")
+                        if lang == "python":
+                            print("    Falling back to codeparrot/codeparrot-clean...")
+                            ds = load_dataset(
+                                "codeparrot/codeparrot-clean",
+                                split="train",
+                                streaming=True,
+                            )
+                            field = "content"
+                        else:
+                            print(f"    Falling back to code-search-net/code_search_net {lang}...")
+                            ds = load_dataset(
+                                "code-search-net/code_search_net",
+                                name=lang,
+                                split="train",
+                                streaming=True,
+                            )
+                            field = "whole_func_string"
                     for example in ds:
-                        content = example.get("content", "").strip()
+                        content = example.get(field, "").strip()
                         if len(content) < 100:
                             skipped += 1
                             continue
@@ -326,7 +448,7 @@ def _download_arxiv(load_dataset):
 
     try:
         ds = load_dataset("ccdv/arxiv-classification",
-                          split="train", streaming=True, trust_remote_code=True)
+                          split="train", streaming=True, trust_remote_code=False)
         with open(path, "w", encoding="utf-8") as f:
             for example in ds:
                 text = example.get("text", "").strip()
@@ -355,12 +477,20 @@ def stage_train_classifiers():
     if QUALITY_MODEL.exists():
         print(f"[skip] Quality classifier exists: {QUALITY_MODEL}")
     else:
-        train_quality_classifier(str(QUALITY_MODEL), n_samples=500_000)
+        try:
+            train_quality_classifier(str(QUALITY_MODEL), n_samples=200_000)
+        except Exception as e:
+            print(f"  Quality classifier failed: {e}")
+            print("  Falling back to heuristic scoring only.")
 
     if TOXICITY_MODEL.exists():
         print(f"[skip] Toxicity classifier exists: {TOXICITY_MODEL}")
     else:
-        train_toxicity_classifier(str(TOXICITY_MODEL), n_samples=300_000)
+        try:
+            train_toxicity_classifier(str(TOXICITY_MODEL), n_samples=200_000)
+        except Exception as e:
+            print(f"  Toxicity classifier failed: {e}")
+            print("  Skipping toxicity filtering.")
 
 
 # ── stage 3: quality + toxicity scoring ─────────────────────────────
@@ -370,24 +500,6 @@ def stage_quality_score():
     SCORED_DIR.mkdir(parents=True, exist_ok=True)
     from src.data.quality import filter_and_score as heuristic_score
 
-    # load trained classifiers if available
-    quality_clf = None
-    toxicity_clf = None
-
-    if QUALITY_MODEL.exists():
-        from src.data.classifier import QualityClassifier
-        quality_clf = QualityClassifier(str(QUALITY_MODEL))
-        print("  Using trained quality classifier")
-    else:
-        print("  No quality classifier found, using heuristics only")
-
-    if TOXICITY_MODEL.exists():
-        from src.data.classifier import ToxicityClassifier
-        toxicity_clf = ToxicityClassifier(str(TOXICITY_MODEL))
-        print("  Using trained toxicity classifier")
-    else:
-        print("  No toxicity classifier found, skipping toxicity filter")
-
     source_files = [
         ("fineweb_edu_hq.txt", QUALITY_MIN_SCORE),
         ("wikipedia_clean.txt", 0.45),
@@ -395,6 +507,51 @@ def stage_quality_score():
         ("code_clean.txt", 0.40),
         ("arxiv_clean.txt", 0.45),
     ]
+
+    # short-circuit if every source is already scored or unavailable — avoids
+    # loading the classifier pickles (which can fail on numpy version drift)
+    pending = []
+    for f, t in source_files:
+        dst = SCORED_DIR / f
+        src = RAW_DIR / f
+        if dst.exists() and dst.stat().st_size > 0:
+            continue  # already scored
+        if not src.exists() or src.stat().st_size == 0:
+            continue  # raw data missing or empty
+        pending.append((f, t))
+    if not pending:
+        for filename, _ in source_files:
+            if (SCORED_DIR / filename).exists():
+                print(f"[skip] {filename} already scored")
+            elif not (RAW_DIR / filename).exists():
+                print(f"[skip] {filename} not downloaded")
+        return
+
+    # load trained classifiers if available, only when there's work to do
+    quality_clf = None
+    toxicity_clf = None
+
+    if QUALITY_MODEL.exists():
+        try:
+            from src.data.classifier import QualityClassifier
+            quality_clf = QualityClassifier(str(QUALITY_MODEL))
+            print("  Using trained quality classifier")
+        except Exception as e:
+            print(f"  Quality classifier failed to load ({e.__class__.__name__}); "
+                  "falling back to heuristics")
+    else:
+        print("  No quality classifier found, using heuristics only")
+
+    if TOXICITY_MODEL.exists():
+        try:
+            from src.data.classifier import ToxicityClassifier
+            toxicity_clf = ToxicityClassifier(str(TOXICITY_MODEL))
+            print("  Using trained toxicity classifier")
+        except Exception as e:
+            print(f"  Toxicity classifier failed to load ({e.__class__.__name__}); "
+                  "skipping toxicity filter")
+    else:
+        print("  No toxicity classifier found, skipping toxicity filter")
 
     for filename, threshold in source_files:
         src = RAW_DIR / filename
@@ -766,49 +923,78 @@ def stage_pretrain():
     if result.returncode != 0:
         print(f"WARNING: Training exited with code {result.returncode}")
 
-    final = CKPT_DIR / "final.pt"
-    if final.exists():
-        shutil.copy2(str(final), str(pretrain_ckpt))
+    # train.py writes pretrain_1.1_final.pt directly when training completes;
+    # if the run was interrupted, fall back to the latest step checkpoint.
+    if pretrain_ckpt.exists():
         print(f"\nPretrain checkpoint: {pretrain_ckpt}")
     else:
-        ckpts = sorted(CKPT_DIR.glob("1.1_step_*.pt"))
-        if ckpts:
-            shutil.copy2(str(ckpts[-1]), str(pretrain_ckpt))
-            print(f"\nUsing latest: {ckpts[-1]} -> {pretrain_ckpt}")
+        step_ckpts = sorted(CKPT_DIR.glob("1.1_step_*.pt"), key=_ckpt_step)
+        if step_ckpts:
+            shutil.copy2(str(step_ckpts[-1]), str(pretrain_ckpt))
+            print(f"\nTraining did not complete; using latest step checkpoint: "
+                  f"{step_ckpts[-1].name} -> {pretrain_ckpt.name}")
         else:
             print("ERROR: No checkpoint found!")
             sys.exit(1)
 
 
-# ── stage 7: synthetic instruct ─────────────────────────────────────
+# ── stage 7a: download public instruct datasets ────────────────────
+def stage_download_instruct():
+    banner("Stage 8a: Download free public instruct datasets")
+
+    have = sorted(RAW_DIR.glob("instruct_*.jsonl"))
+    total = 0
+    for p in have:
+        if p.stat().st_size > 0:
+            total += sum(1 for _ in open(p, encoding="utf-8"))
+    # threshold tuned to require all 10 sources downloaded; the per-source
+    # downloader has its own skip-when-file-exists logic, so re-running is cheap
+    if total >= 700_000:
+        print(f"[skip] Already have {total:,} public instruct samples")
+        return
+
+    cmd = [sys.executable, str(ROOT / "scripts" / "download_instruct.py")]
+    print("Downloading public instruction datasets (no API key needed)...")
+    result = subprocess.run(cmd, cwd=str(ROOT))
+    if result.returncode != 0:
+        print(f"WARNING: download_instruct exited with code {result.returncode}")
+
+
+# ── stage 7b: synthetic instruct ────────────────────────────────────
 def stage_generate_synthetic():
-    banner("Stage 8: Synthetic instruction data")
+    banner("Stage 8b: Synthetic instruction data (optional, voice/style)")
 
     synthetic_path = RAW_DIR / "synthetic_instruct.jsonl"
 
-    if synthetic_path.exists() and synthetic_path.stat().st_size > 50_000_000:
-        n_lines = sum(1 for _ in open(synthetic_path))
-        print(f"[skip] Synthetic data: {n_lines:,} samples ({synthetic_path.stat().st_size / 1e6:.1f} MB)")
-        return
+    if synthetic_path.exists():
+        n_lines = sum(1 for _ in open(synthetic_path, encoding="utf-8"))
+        if n_lines >= 5000:
+            print(f"[skip] Synthetic data: {n_lines:,} samples ({synthetic_path.stat().st_size / 1e6:.1f} MB)")
+            return
+        print(f"  Found {n_lines:,} existing samples, need more...")
 
     if not os.environ.get("ANTHROPIC_API_KEY"):
+        if synthetic_path.exists():
+            print("No API key but synthetic data exists. Continuing with what we have.")
+            return
         print("ANTHROPIC_API_KEY not set. Skipping synthetic generation.")
         print("  To generate:")
         print("    export ANTHROPIC_API_KEY=sk-ant-...")
-        print("    python scripts/generate_synthetic.py --n-samples 50000")
+        print("    python scripts/generate_synthetic.py --n-samples 15000")
         print("\n  Optional but highly recommended.")
         return
 
     cmd = [
         sys.executable, str(ROOT / "scripts" / "generate_synthetic.py"),
-        "--n-samples", "50000",
+        "--n-samples", "15000",
         "--output", str(synthetic_path),
         "--model", "claude-haiku-4-5-20251001",
+        "--max-tokens", "512",
     ]
     if synthetic_path.exists():
         cmd.append("--resume")
 
-    print("Generating 50k synthetic samples (~$15-20 with Haiku)...")
+    print("Generating synthetic samples...")
     result = subprocess.run(cmd, cwd=str(ROOT))
 
     if result.returncode != 0:
@@ -838,16 +1024,36 @@ def stage_build_instruct_shards():
     INSTRUCT_SHARDS.mkdir(parents=True, exist_ok=True)
 
     instruct_files = []
+
+    # 1.0's FLAN-style instruct corpus (592k samples) — the proven recipe that
+    # gave 1.0 its instruction-following quality. include it as the foundation
+    # for 1.1 SFT, since 1.1 is "1.0 scaled up" architecturally.
+    flan_1_0 = ROOT / "data" / "raw_1.0" / "instruct_corpus.jsonl"
+    if flan_1_0.exists() and flan_1_0.stat().st_size > 0:
+        instruct_files.append(("flan_1.0", flan_1_0))
+
+    # public instruct datasets pulled by scripts/download_instruct.py
+    # each is included once. their volume already gives plenty of coverage.
+    public_files = sorted(RAW_DIR.glob("instruct_*.jsonl"))
+    for p in public_files:
+        if p.stat().st_size > 0:
+            instruct_files.append((p.stem, p))
+
+    # synthetic data: repeat for several epochs since it's small but high quality.
+    # 4 epochs is the sweet spot — 8 caused overfitting to the small unique set.
     synthetic = RAW_DIR / "synthetic_instruct.jsonl"
     if synthetic.exists():
-        instruct_files.append(("synthetic", synthetic))
-
-    old_instruct = ROOT / "data" / "raw_1.0" / "instruct_corpus.jsonl"
-    if old_instruct.exists():
-        instruct_files.append(("1.0_instruct", old_instruct))
+        public_total = sum(
+            1 for p in public_files for _ in open(p, encoding="utf-8")
+        ) if public_files else 0
+        epochs = 4 if public_total >= 50_000 else 10
+        for i in range(epochs):
+            instruct_files.append((f"synthetic_ep{i}", synthetic))
 
     if not instruct_files:
         print("ERROR: No instruct data found!")
+        print("  Run: python scripts/download_instruct.py")
+        print("  Or:  python scripts/generate_synthetic.py --n-samples 15000")
         sys.exit(1)
 
     print(f"Sources:")
@@ -857,15 +1063,20 @@ def stage_build_instruct_shards():
     print("\nTokenizing with loss masking...")
     t0 = time.time()
 
-    all_tokens = []
-    all_masks = []
+    # collect each conversation as its own (tokens, mask) pair; we'll shuffle
+    # at conversation granularity before packing so same-source clusters
+    # don't end up packed together inside 1024-token sequences.
+    conv_tokens = []  # list of np.uint16 arrays
+    conv_masks = []   # list of np.uint8 arrays
     total_tokens = 0
     n_convs = 0
     n_multiturn = 0
     source_counts = {}
+    skipped_counts = {}
 
     for source_name, path in instruct_files:
         file_count = 0
+        skipped = 0
         with open(path, "r", encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
@@ -875,10 +1086,17 @@ def stage_build_instruct_shards():
                     data = json.loads(line)
                     text = data["text"]
                 except (json.JSONDecodeError, KeyError):
+                    skipped += 1
+                    continue
+
+                text = _normalize_instruct_text(text)
+                if _has_bad_sft_pattern(text):
+                    skipped += 1
                     continue
 
                 tokens, mask = _build_multiturn_mask(text, sp)
                 if tokens is None:
+                    skipped += 1
                     continue
 
                 if text.count("User:") > 1:
@@ -887,8 +1105,8 @@ def stage_build_instruct_shards():
                 tokens.append(eos_id)
                 mask = np.append(mask, 1)
 
-                all_tokens.extend(tokens)
-                all_masks.extend(mask)
+                conv_tokens.append(np.array(tokens, dtype=np.uint16))
+                conv_masks.append(np.asarray(mask, dtype=np.uint8))
                 total_tokens += len(tokens)
                 n_convs += 1
                 file_count += 1
@@ -897,15 +1115,26 @@ def stage_build_instruct_shards():
                     print(f"  {n_convs:,} convs | {total_tokens / 1e6:.1f}M tokens")
 
         source_counts[source_name] = file_count
-        print(f"  {source_name}: {file_count:,} conversations")
+        skipped_counts[source_name] = skipped
+        print(f"  {source_name}: {file_count:,} conversations"
+              f" ({skipped:,} skipped)")
 
     dt = time.time() - t0
     print(f"\n  Total: {n_convs:,} convs, {total_tokens / 1e6:.1f}M tokens ({elapsed_str(dt)})")
     print(f"  Multi-turn: {n_multiturn:,} ({n_multiturn / max(1, n_convs) * 100:.1f}%)")
 
+    # shuffle conversations BEFORE packing to mix sources within sequences
+    print("  Shuffling conversations...")
+    perm_rng = np.random.default_rng(42)
+    perm = perm_rng.permutation(n_convs)
+    conv_tokens = [conv_tokens[i] for i in perm]
+    conv_masks = [conv_masks[i] for i in perm]
+
     print("  Packing...")
-    all_tokens = np.array(all_tokens, dtype=np.uint16)
-    all_masks = np.array(all_masks, dtype=np.uint8)
+    all_tokens = np.concatenate(conv_tokens)
+    all_masks = np.concatenate(conv_masks)
+    del conv_tokens, conv_masks
+    gc.collect()
 
     n_sequences = len(all_tokens) // pack_len
     trimmed = n_sequences * pack_len
@@ -950,6 +1179,7 @@ def stage_build_instruct_shards():
         "has_loss_mask": True,
         "multiturn": True,
         "source_counts": source_counts,
+        "skipped_counts": skipped_counts,
     }
     with open(meta_path, "w") as f:
         yaml.dump(meta, f)
@@ -963,32 +1193,135 @@ def stage_build_instruct_shards():
     gc.collect()
 
 
+_ROLE_RE = re.compile(r"(?:^|\n)(User|Assistant): ?")
+_MARKDOWN_ROLE_RE = re.compile(
+    r"(?m)^\s*(?:[-*]\s*)?(?:#{1,6}\s*)?(?:\*\*)?"
+    r"(User|Assistant)(?:\s*(?:turn|response|message))?"
+    r"(?:\s*\d+)?\s*:(?:\*\*)?\s*"
+)
+_TURN_HEADING_RE = re.compile(
+    r"(?m)^\s*(?:#{1,6}\s*)?(?:\*\*)?"
+    r"Turn\s+\d+(?:\s*[-:][^\n]*)?(?:\*\*)?\s*$"
+)
+_BAD_SFT_PATTERNS = (
+    "i am a language model",
+    "i am an ai",
+    "i'm an ai",
+    "i am a computer program",
+    "as an ai",
+    "as a language model",
+    "i cannot answer",
+    "i can't answer",
+    "i do not have access",
+    "i don't have access",
+    "i am not able to provide",
+    "i am unable to",
+    "as an artificial intelligence",
+    "i'm just an ai",
+    "i'm a language model",
+    "i don't have personal",
+    "i do not have personal",
+    "as a helpful assistant",
+    "i am only a",
+    "i'm only a",
+)
+
+
+def _normalize_instruct_text(text: str) -> str:
+    """Normalize common generated conversation wrappers into User/Assistant."""
+    text = text.replace("\r\n", "\n").replace("\r", "\n").strip()
+    text = _TURN_HEADING_RE.sub("", text)
+    text = _MARKDOWN_ROLE_RE.sub(lambda m: f"{m.group(1)}: ", text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
+
+
+def _has_bad_sft_pattern(text: str) -> bool:
+    low = text.lower()
+    return any(p in low for p in _BAD_SFT_PATTERNS)
+
+
 def _build_multiturn_mask(text, sp):
-    """Build loss mask for multi-turn conversation."""
-    tokens = sp.encode(text, out_type=int)
-    if len(tokens) < 4:
+    """Build loss mask by tokenizing each role segment separately.
+
+    Two key behaviors:
+    1. Role boundaries are line-anchored (^ or after \\n) so role markers
+       inside content (code, JSON, quoted dialogs) don't split responses.
+    2. The role label itself ("Assistant: " / "User: ") is NEVER masked.
+       The label is part of the prompt format the user provides, not
+       something the model should learn to generate. If we mask=1 on the
+       label, the model learns to emit "Assistant:" mid-response, which
+       is exactly what we don't want.
+
+    For each segment: tokenize the label (mask=0) and the content
+    (mask=1 for assistant, 0 for user) separately.
+    """
+    if not text or not text.strip():
         return None, None
 
-    mask = np.zeros(len(tokens), dtype=np.uint8)
-    pos = 0
-    while pos < len(text):
-        asst_start = text.find("Assistant:", pos)
-        if asst_start < 0:
-            break
-        next_user = text.find("\nUser:", asst_start + 10)
-        asst_end = next_user if next_user >= 0 else len(text)
+    # locate role boundaries with a line-anchored regex.
+    # m.start(1) = where "User"/"Assistant" begins
+    # m.end()    = where the colon (and optional space) ends — i.e. where
+    #              the actual content starts
+    boundaries = []
+    for m in _ROLE_RE.finditer(text):
+        role_start = m.start(1)
+        label_end = m.end()
+        role = "user" if m.group(1) == "User" else "assistant"
+        boundaries.append((role, role_start, label_end))
 
-        prefix_tokens = sp.encode(text[:asst_start], out_type=int)
-        segment_tokens = sp.encode(text[:asst_end], out_type=int)
-        mask[len(prefix_tokens):len(segment_tokens)] = 1
-        pos = asst_end + 1
+    if not boundaries:
+        return None, None
 
-    return tokens, mask
+    tokens = []
+    mask_bits = []
+
+    # any text before the first role marker (rare) is treated as non-assistant
+    if boundaries[0][1] > 0:
+        prefix = text[: boundaries[0][1]]
+        if prefix.strip():
+            ptoks = sp.encode(prefix, out_type=int)
+            tokens.extend(ptoks)
+            mask_bits.extend([0] * len(ptoks))
+
+    for i, (role, role_start, label_end) in enumerate(boundaries):
+        next_start = (
+            boundaries[i + 1][1] if i + 1 < len(boundaries) else len(text)
+        )
+
+        # 1. role label "User: " or "Assistant: " — always mask=0
+        label_text = text[role_start:label_end]
+        if label_text:
+            label_tokens = sp.encode(label_text, out_type=int)
+            tokens.extend(label_tokens)
+            mask_bits.extend([0] * len(label_tokens))
+
+        # 2. content after the label, up to the next role marker
+        content_text = text[label_end:next_start]
+        if content_text:
+            content_tokens = sp.encode(content_text, out_type=int)
+            bit = 1 if role == "assistant" else 0
+            tokens.extend(content_tokens)
+            mask_bits.extend([bit] * len(content_tokens))
+
+    if len(tokens) < 4:
+        return None, None
+    if not any(mask_bits):
+        # no assistant content at all
+        return None, None
+
+    return tokens, np.array(mask_bits, dtype=np.uint8)
 
 
 # ── stage 9: finetune ────────────────────────────────────────────────
 def stage_finetune():
-    banner("Stage 10: Finetune (30k steps)")
+    # max_steps is read from FINETUNE_CFG; banner mirrors that
+    try:
+        with open(FINETUNE_CFG, "r") as f:
+            _max = yaml.safe_load(f)["training"]["max_steps"]
+        banner(f"Stage 10: Finetune ({_max:,} steps)")
+    except Exception:
+        banner("Stage 10: Finetune")
 
     finetune_ckpt = CKPT_DIR / "finetune_1.1_final.pt"
     if finetune_ckpt.exists():
@@ -1000,7 +1333,7 @@ def stage_finetune():
         print("ERROR: No pretrain checkpoint!")
         sys.exit(1)
 
-    ft_ckpts = sorted(CKPT_DIR.glob("1.1_ft_step_*.pt"))
+    ft_ckpts = sorted(CKPT_DIR.glob("1.1_ft_step_*.pt"), key=_ckpt_step)
     if ft_ckpts:
         resume = ft_ckpts[-1]
         print(f"Resuming finetune from: {resume}")
@@ -1017,14 +1350,16 @@ def stage_finetune():
     if result.returncode != 0:
         print(f"WARNING: Finetune exited with code {result.returncode}")
 
-    final = CKPT_DIR / "final.pt"
-    if final.exists():
-        shutil.copy2(str(final), str(finetune_ckpt))
+    # train.py writes finetune_1.1_final.pt directly. fall back to latest
+    # ft step checkpoint only if the run was interrupted.
+    if finetune_ckpt.exists():
         print(f"\nFinetune checkpoint: {finetune_ckpt}")
     else:
-        ft_ckpts = sorted(CKPT_DIR.glob("1.1_ft_step_*.pt"))
+        ft_ckpts = sorted(CKPT_DIR.glob("1.1_ft_step_*.pt"), key=_ckpt_step)
         if ft_ckpts:
             shutil.copy2(str(ft_ckpts[-1]), str(finetune_ckpt))
+            print(f"\nFinetune did not complete; using latest: "
+                  f"{ft_ckpts[-1].name} -> {finetune_ckpt.name}")
 
 
 # ── stage 10: test ───────────────────────────────────────────────────
@@ -1111,8 +1446,9 @@ def stage_test():
 def main():
     parser = argparse.ArgumentParser(description="Plasma 1.1 training pipeline")
     parser.add_argument("--stage", choices=[
-        "cleanup", "download", "classifiers", "quality", "dedup", "tokenizer",
-        "shards", "pretrain", "synthetic", "instruct", "finetune", "test",
+        "verify", "cleanup", "download", "classifiers", "quality", "dedup",
+        "tokenizer", "shards", "pretrain", "download_instruct", "synthetic",
+        "instruct", "finetune", "test",
     ], help="Run a specific stage")
     args = parser.parse_args()
 
@@ -1121,18 +1457,20 @@ def main():
     print("=" * 64)
 
     stages = {
-        "cleanup":     stage_cleanup,
-        "download":    stage_download,
-        "classifiers": stage_train_classifiers,
-        "quality":     stage_quality_score,
-        "dedup":       stage_minhash_dedup,
-        "tokenizer":   stage_train_tokenizer,
-        "shards":      stage_mix_and_shard,
-        "pretrain":    stage_pretrain,
-        "synthetic":   stage_generate_synthetic,
-        "instruct":    stage_build_instruct_shards,
-        "finetune":    stage_finetune,
-        "test":        stage_test,
+        "verify":           stage_verify,
+        "cleanup":          stage_cleanup,
+        "download":         stage_download,
+        "classifiers":      stage_train_classifiers,
+        "quality":          stage_quality_score,
+        "dedup":            stage_minhash_dedup,
+        "tokenizer":        stage_train_tokenizer,
+        "shards":           stage_mix_and_shard,
+        "pretrain":         stage_pretrain,
+        "download_instruct": stage_download_instruct,
+        "synthetic":        stage_generate_synthetic,
+        "instruct":         stage_build_instruct_shards,
+        "finetune":         stage_finetune,
+        "test":             stage_test,
     }
 
     if args.stage:

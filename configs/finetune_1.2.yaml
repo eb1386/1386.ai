@@ -1,0 +1,50 @@
+# plasma 1.2 finetune -- v4 data recipe rebuilt on the 1.2 tokenizer
+#
+# data: sft_shards_1.2 -- built by build_sft_v4.py --tokenizer
+#       data/tokenizer_1.2.model --template special --out-dir data/sft_shards_1.2
+#       (atomic <|user|>/<|assistant|>/<|end|> markers; same source mix,
+#       filters, eos-per-turn and bos-doc-boundary mechanics as 1.1 v4)
+# base: checkpoints/pretrain_1.2_final.pt (via --finetune)
+model:
+  vocab_size: 48000
+  hidden_size: 1536
+  num_layers: 28
+  num_heads: 24
+  num_kv_heads: 4
+  intermediate_size: 4096
+  max_seq_len: 2048
+  dropout: 0.0
+  rope_theta: 100000.0
+  qk_norm: true
+
+training:
+  batch_size: 16
+  micro_batch_size: 2
+  gradient_accumulation: 8
+  # recomputed by the orchestrator: n_train_sequences / 16 * 3 epochs
+  max_steps: 24000
+  warmup_steps: 400
+  learning_rate: 1.6e-5
+  min_lr: 0.0
+  lr_schedule: cosine
+  weight_decay: 0.05
+  max_grad_norm: 1.0
+  betas: [0.9, 0.95]
+  optimizer: adamw8bit
+  precision: bf16
+  gradient_checkpointing: true
+  compile: false
+  use_loss_mask: true
+  doc_attention_bos_id: 1
+  checkpoint_interval: 2000
+  keep_last_checkpoints: 4
+  eval_interval: 1000
+  log_interval: 50
+  val_sequences: 1024
+  val_batch_size: 4
+  checkpoint_prefix: 1.2_ft_step
+
+data:
+  shard_dir: data/sft_shards_1.2
+  tokenizer_path: data/tokenizer_1.2.model
+  seq_len: 2048

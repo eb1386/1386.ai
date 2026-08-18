@@ -13,11 +13,18 @@ data/deduped_*/
 data/shards_*/
 data/instruct_shards_*/
 data/*.bin
+data/*.pkl
+data/*.model
+data/*.vocab
 
-# checkpoints (keep finals, ignore intermediates)
-checkpoints/*_step_*.pt
-checkpoints/final.pt
+# checkpoints — all of them. distribute via HF Hub, not Git.
+# (GitHub blocks any single file > 100 MB; our weights are 1-6 GB each.)
+checkpoints/*.pt
 logs/
+
+# huggingface cache
+.cache/
+~/.cache/huggingface/
 
 # web
 web/chat_history.db
@@ -31,3 +38,15 @@ web/chat_history.db
 # os
 .DS_Store
 Thumbs.db
+
+# local-only experiments and machine-specific op scripts
+web/models_local.json
+scripts/local_*.py
+configs/*_local.yaml
+scripts/run_queue_now.ps1
+scripts/post_game_queue.ps1
+scripts/resume_after_spiderman.ps1
+scripts/resume_midnight.ps1
+
+# all generated/downloaded data
+data/

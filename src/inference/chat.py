@@ -10,47 +10,18 @@ from src.model.config import ModelConfig
 from src.model.transformer import Transformer
 from src.train.utils import load_config, load_checkpoint
 from src.inference.generate import generate
-
-MAX_HISTORY_TOKENS = 768
-
-
-def format_chat(history: list[dict], tokenizer=None, multiturn=False) -> str:
-    # format history into prompt
-    if not multiturn:
-        last_user = ""
-        for msg in reversed(history):
-            if msg["role"] == "user":
-                last_user = msg["content"]
-                break
-        return f"User: {last_user}\nAssistant:"
-
-    turns = []
-    for msg in history:
-        if msg["role"] == "user":
-            turns.append(f"User: {msg['content']}")
-        elif msg["role"] == "assistant":
-            turns.append(f"Assistant: {msg['content']}")
-    turns.append("Assistant:")
-
-    prompt = "\n".join(turns)
-
-    if tokenizer:
-        tokens = tokenizer.encode(prompt, out_type=int)
-        while len(turns) > 3 and len(tokens) > MAX_HISTORY_TOKENS:
-            turns.pop(0)
-            prompt = "\n".join(turns)
-            tokens = tokenizer.encode(prompt, out_type=int)
-
-    return prompt
+from src.inference.template import build_prompt_ids, stop_sequences, penalty_exclude
 
 
 def main():
     parser = argparse.ArgumentParser(description="1386.ai Chat")
     parser.add_argument("--checkpoint", required=True)
     parser.add_argument("--config", default="configs/tiny.yaml")
-    parser.add_argument("--temperature", type=float, default=0.15)
-    parser.add_argument("--top_k", type=int, default=8)
+    # match the web serving defaults so cli observations are representative
+    parser.add_argument("--temperature", type=float, default=0.5)
+    parser.add_argument("--top_k", type=int, default=30)
     parser.add_argument("--top_p", type=float, default=0.85)
+    parser.add_argument("--repetition_penalty", type=float, default=1.1)
     parser.add_argument("--max_tokens", type=int, default=200)
     parser.add_argument("--multiturn", action="store_true",
                         help="enable multi-turn context")
@@ -96,30 +67,40 @@ def main():
             print("[History cleared]\n")
             continue
 
+        # token-level template, exactly as the sft data was encoded
+        prior = history if multiturn else []
+        ids = build_prompt_ids(
+            tokenizer, user_input, prior,
+            max_prompt_tokens=model_cfg.max_seq_len - args.max_tokens)
         history.append({"role": "user", "content": user_input})
-        prompt = format_chat(history, tokenizer=tokenizer, multiturn=multiturn)
 
-        full_output = generate(
-            model, tokenizer, prompt,
+        response, meta = generate(
+            model, tokenizer, "",
+            prompt_ids=ids,
             max_tokens=args.max_tokens,
             temperature=args.temperature,
             top_k=args.top_k,
             top_p=args.top_p,
-            repetition_penalty=1.5,
+            repetition_penalty=args.repetition_penalty,
+            penalty_window=128,
+            penalty_exclude=penalty_exclude(tokenizer),
+            stop_id_seqs=stop_sequences(tokenizer),
             device=device,
+            return_new_only=True,
+            return_meta=True,
         )
 
-        response = full_output[len(prompt):].strip()
-        for stop in ["\nUser:", "\nSystem:", "\nHuman:", "\nQuestion:", "\n\n\n"]:
+        response = response.strip()
+        for stop in ["\nUser:", "\n User:", "\nAssistant:", "\n Assistant:",
+                     "\nSystem:", "\nHuman:", "\nQuestion:", "\n\n\n"]:
             if stop in response:
                 response = response[: response.index(stop)]
 
         response = response.strip()
 
-        if response.rstrip(".").isdigit() and len(response.rstrip(".")) <= 3:
-            response = "I'm not sure about that."
-
-        if len(response) > 100 and response[-1] not in ".!?\"'":
+        # only trim dangling fragments from a hard length cutoff
+        if meta["stop"] in ("length", "context") and len(response) > 100 \
+                and response[-1] not in ".!?\"'":
             last_end = max(response.rfind("."), response.rfind("!"), response.rfind("?"))
             if last_end > 50:
                 response = response[:last_end + 1]

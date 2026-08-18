@@ -1,0 +1,34 @@
+# anneal / mid-training mixture for the FINAL ~8% of pretraining.
+#
+# rationale: OLMo-2, MiniCPM and SmolLM2 all report large downstream gains from
+# upweighting high-quality, knowledge-dense data during the LR cooldown rather
+# than training on one static mixture the whole way. this mix roughly doubles
+# math and code and drops the low-signal sources.
+#
+# deliberately contains NO instruction/chat data: putting SFT sources into
+# pretraining is the exact pretrain/SFT contamination that made the old 1.1
+# benchmark numbers meaningless. instruction following is taught in SFT.
+#
+# usage:
+#   python scripts/build_corpus_v3.py --mix configs/anneal_mix.yaml \
+#       --out-dir data/shards_anneal --target-tokens 1200000000 --force
+#   python scripts/shuffle_shards.py --in-dir data/shards_anneal \
+#       --out-dir data/shards_anneal_s
+#   # then resume the pretrain from the last stable checkpoint with a config
+#   # whose shard_dir is data/shards_anneal_s and whose schedule is decay-only.
+
+weights:
+  fineweb_edu:   0.30
+  math:          0.25
+  code:          0.20
+  cosmopedia:    0.15
+  stackexchange: 0.10
+  wikipedia:     0.0
+  arxiv:         0.0
+
+max_epochs:
+  fineweb_edu:   1
+  math:          3
+  code:          4
+  cosmopedia:    3
+  stackexchange: 2

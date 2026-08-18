@@ -17,7 +17,7 @@ def main():
         for i in range(torch.cuda.device_count()):
             props = torch.cuda.get_device_properties(i)
             print(f"\nGPU {i}: {props.name}")
-            print(f"  VRAM:          {props.total_mem / 1e9:.1f} GB")
+            print(f"  VRAM:          {props.total_memory / 1e9:.1f} GB")
             print(f"  Compute cap:   {props.major}.{props.minor}")
             print(f"  SM count:      {props.multi_processor_count}")
 

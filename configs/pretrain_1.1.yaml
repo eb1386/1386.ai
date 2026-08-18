@@ -14,13 +14,19 @@ training:
   batch_size: 32
   micro_batch_size: 2
   gradient_accumulation: 16
-  max_steps: 200000
+  # full clean restart from step 0 with fixed dataloader. true Chinchilla on
+  # unique tokens for 521M params = 10.43B / 32k_per_step = 318,000 steps.
+  max_steps: 318000
   warmup_steps: 3000
   learning_rate: 1.2e-4
   min_lr: 1.2e-5
   weight_decay: 0.1
   max_grad_norm: 1.0
   precision: bf16
+  # tested gradient_checkpointing=false earlier; pre-flight showed 14.6 GB peak,
+  # but ACTUAL training rose to 15.87/16.30 GB (97%) and throughput collapsed
+  # 16700 -> 9700 tok/s by step 550 due to caching-allocator pressure.
+  # reverted to true for stability over a 7+ day training run.
   gradient_checkpointing: true
   checkpoint_interval: 10000
   eval_interval: 5000
