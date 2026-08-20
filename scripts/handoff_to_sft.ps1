@@ -7,7 +7,7 @@
 # Safe to run twice: exits if SFT already started.
 
 Set-Location $PSScriptRoot\..
-$py    = "C:\Users\Evan Borodow\AppData\Local\Programs\Python\Python310\python.exe"
+$py    = "$env:LOCALAPPDATA\Programs\Python\Python310\python.exe"
 $final = "checkpoints\pretrain_1.1_v3_final.pt"
 
 function Log($m) {

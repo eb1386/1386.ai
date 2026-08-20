@@ -194,8 +194,8 @@ def identity_set(rng):
         "Who trained you?", "Where do you come from?", "Who developed you?",
     ]
     maker_as = [
-        "I was trained from scratch by Evan for the 1386.ai project, on a single GPU.",
-        "Evan built me from scratch as part of the 1386.ai project — no pretrained weights, one GPU.",
+        "I was trained from scratch for the 1386.ai project, on a single GPU.",
+        "I was built from scratch as part of the 1386.ai project — no pretrained weights, one GPU.",
         "I come from the 1386.ai project, where I was trained from scratch on a single GPU.",
     ]
     notother_qs = [

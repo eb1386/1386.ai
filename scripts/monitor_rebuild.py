@@ -112,7 +112,7 @@ def main():
                 out = log_dir / f"eval_holdout_{latest.stem}.json"
                 write(f"running holdout eval for {latest.name}")
                 cmd = [
-                    str(Path("C:/Users/Evan Borodow/AppData/Local/Programs/Python/Python310/python.exe")),
+                    str(Path.home() / "AppData/Local/Programs/Python/Python310/python.exe"),
                     "scripts/eval_holdout.py",
                     "--checkpoint", str(latest.relative_to(ROOT)),
                     "--config", str((run_dir / "configs" / "finetune.yaml").relative_to(ROOT)),
@@ -124,7 +124,7 @@ def main():
                 seed = int(time.time()) % 1_000_000_000
                 write(f"running randomized holdout eval for {latest.name} seed={seed}")
                 rand_cmd = [
-                    str(Path("C:/Users/Evan Borodow/AppData/Local/Programs/Python/Python310/python.exe")),
+                    str(Path.home() / "AppData/Local/Programs/Python/Python310/python.exe"),
                     "scripts/eval_random_holdout.py",
                     "--checkpoint", str(latest.relative_to(ROOT)),
                     "--config", str((run_dir / "configs" / "finetune.yaml").relative_to(ROOT)),

@@ -9,7 +9,7 @@
 # Runs detached, so it survives a terminal teardown.
 
 Set-Location $PSScriptRoot\..
-$py = "C:\Users\Evan Borodow\AppData\Local\Programs\Python\Python310\python.exe"
+$py = "$env:LOCALAPPDATA\Programs\Python\Python310\python.exe"
 $final = "checkpoints\finetune_1.1_v3_final.pt"
 
 function Log($m) {

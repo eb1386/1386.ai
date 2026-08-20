@@ -8,7 +8,7 @@
 # Everything runs detached, so it survives a terminal/session teardown.
 
 Set-Location $PSScriptRoot\..
-$py = "C:\Users\Evan Borodow\AppData\Local\Programs\Python\Python310\python.exe"
+$py = "$env:LOCALAPPDATA\Programs\Python\Python310\python.exe"
 
 function Log($m) {
   $l = ("[{0}] {1}" -f (Get-Date -Format "MM-dd HH:mm:ss"), $m)

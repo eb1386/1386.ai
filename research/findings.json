@@ -74,8 +74,8 @@
       },
       {
         "claim": "Concretely, Plasma's current mixture is defined in one dict in scripts/build_pretrain_corpus.py, so all of this is a small, low-risk code change \u2014 not a re-architecture.",
-        "evidence": "C:\\Users\\Evan Borodow\\Downloads\\1386.ai\\scripts\\build_pretrain_corpus.py lines ~33-40 define SOURCES = {fineweb_edu 0.42, wikipedia 0.20, code 0.15, stackexchange 0.13, arxiv 0.10} with deficit-based sampling (small sources exhaust, so realized shares drifted to the reported 60/12/13/10/5). The header comment states 'single-pass (no upsampling)' and 'NO instruct/synthetic data'. configs/pretrain_1.1_v2.yaml sets max_steps 320000, batch 32x1024 = 32768 tok/step, lr 1.2e-4 cosine to min_lr 1.2e-5 (10% of peak, never reaching 0).",
-        "source": "Local repo: C:\\Users\\Evan Borodow\\Downloads\\1386.ai\\scripts\\build_pretrain_corpus.py and C:\\Users\\Evan Borodow\\Downloads\\1386.ai\\configs\\pretrain_1.1_v2.yaml"
+        "evidence": "C:\\Users\\eb1386\\Downloads\\1386.ai\\scripts\\build_pretrain_corpus.py lines ~33-40 define SOURCES = {fineweb_edu 0.42, wikipedia 0.20, code 0.15, stackexchange 0.13, arxiv 0.10} with deficit-based sampling (small sources exhaust, so realized shares drifted to the reported 60/12/13/10/5). The header comment states 'single-pass (no upsampling)' and 'NO instruct/synthetic data'. configs/pretrain_1.1_v2.yaml sets max_steps 320000, batch 32x1024 = 32768 tok/step, lr 1.2e-4 cosine to min_lr 1.2e-5 (10% of peak, never reaching 0).",
+        "source": "Local repo: C:\\Users\\eb1386\\Downloads\\1386.ai\\scripts\\build_pretrain_corpus.py and C:\\Users\\eb1386\\Downloads\\1386.ai\\configs\\pretrain_1.1_v2.yaml"
       }
     ],
     "recommendations": [
@@ -200,12 +200,12 @@
       {
         "claim": "Applied to Plasma's actual numbers: continuing the current cosine from step 40,000 to 320,000 accumulates a forward area S1 = 16.53, whereas switching to constant 1.2e-4 until step 288,000 then a 32,000-step (1-sqrt) decay to zero accumulates S1 = 31.04 \u2014 1.88x more \u2014 at IDENTICAL wall clock and identical final LR. Under L = L0 + A*S1^(-alpha) - C*S2 with alpha ~ 0.5, that shrinks the A*S1^(-alpha) term by ~27%.",
         "evidence": "Direct numeric integration of Plasma's CosineScheduler (src/train/scheduler.py) vs a WSD schedule over steps 40,000-320,000 with peak 1.2e-4, min 1.2e-5, warmup 3000, max_steps 320000. Under the current cosine the LR is already down to 80.8% of peak at step 100k, 60.1% at 150k, 38.2% at 200k and 18.8% at 256k \u2014 i.e. the last 40% of the run runs at <40% of peak LR, which is exactly the compute WSD reclaims.",
-        "source": "C:\\Users\\Evan Borodow\\Downloads\\1386.ai\\src\\train\\scheduler.py + configs/pretrain_1.1_v2.yaml (computed)"
+        "source": "C:\\Users\\eb1386\\Downloads\\1386.ai\\src\\train\\scheduler.py + configs/pretrain_1.1_v2.yaml (computed)"
       },
       {
         "claim": "Plasma's step-40,000 checkpoint is, for practical purposes, a STABLE-PHASE checkpoint, not a decayed one: the cosine LR there is 1.1641e-4 = 97.0% of the 1.2e-4 peak. Switching to a WSD constant phase at 1.2e-4 is a +3.1% LR change \u2014 well inside step-to-step noise, requiring no rewarm, no spike, and no loss of optimizer state. This is precisely the case the literature says is SAFE to continue from.",
         "evidence": "Computed from src/train/scheduler.py: decay_ratio = (40000-3000)/(320000-3000) = 0.11672, coeff = 0.96678, lr = 1.2e-5 + 0.96678*(1.08e-4) = 1.1641e-4. Hagele et al.: 'the natural approach is to use checkpoints before the cooldown to continue training with a high LR; this avoids loss spikes and brittle training when rewarming.' src/train/train.py --resume restores AdamW m/v state via load_checkpoint(args.resume, model, optimizer), so second-moment estimates are preserved.",
-        "source": "C:\\Users\\Evan Borodow\\Downloads\\1386.ai\\src\\train\\train.py lines 105-120 + https://arxiv.org/abs/2405.18392"
+        "source": "C:\\Users\\eb1386\\Downloads\\1386.ai\\src\\train\\train.py lines 105-120 + https://arxiv.org/abs/2405.18392"
       },
       {
         "claim": "The dangerous rewarming case \u2014 which Plasma is NOT in \u2014 is resuming from a fully DECAYED checkpoint. Measured cost: rewarming a converged Pythia-410M to 3e-4 produced a peak increase of ~0.1 nats in Pile validation loss, transient, recovering without intervention. Warmup LENGTH barely matters: 0%, 0.5%, 1% and 2%-of-data warmups gave negligible differences in final Pile and SlimPajama validation loss.",
@@ -265,7 +265,7 @@
       {
         "claim": "Concrete Plasma budget arithmetic at the measured 13,500 tok/s (2.4 s/step, 32,768 tokens/step): step 40,000 = 1.311B tokens seen; the full 320,000-step plan = 10.486B tokens = 1.394 epochs of the 7.52B-token corpus = TPP 20.1; 280,000 steps remain = 7.78 days. Cooldown costs: 5,000 steps = 3.3 h (0.164B tokens); 8,000 = 5.3 h; 16,000 = 10.7 h (0.524B); 32,000 = 21.3 h (1.049B); 64,000 = 42.7 h (2.10B).",
         "evidence": "Computed from configs/pretrain_1.1_v2.yaml (batch_size 32, seq_len 1024, max_steps 320000) and the stated 13,500 tok/s throughput; corpus size 7.52B from the project run-status memory. Model param count verified at 521,570,560 total / 460,129,280 non-embedding for hidden 1280, 26 layers, 20 heads, 4 KV heads, intermediate 3584, vocab 48000, tied embeddings.",
-        "source": "C:\\Users\\Evan Borodow\\Downloads\\1386.ai\\configs\\pretrain_1.1_v2.yaml (computed)"
+        "source": "C:\\Users\\eb1386\\Downloads\\1386.ai\\configs\\pretrain_1.1_v2.yaml (computed)"
       },
       {
         "claim": "Nothing in any of these schedule changes costs VRAM. Cooldown, decay-to-zero, beta2 changes and data-mix swaps are all zero-memory. The only memory-relevant item is weight averaging: an fp32 copy of Plasma is 521.57e6 x 4 = 2.086 GB, which should be held on CPU (pinned) rather than on the 16GB RTX 5080, where micro_batch 2 + gradient checkpointing is already the working point.",
@@ -351,7 +351,7 @@
     "findings": [
       {
         "claim": "MASTER COMPARISON TABLE \u2014 architecture. Format: Model | params | layers | d_model | Q/KV heads | head_dim | FFN | vocab | ctx | tied-emb | notable arch.\n\u2022 SmolLM2-360M | 362M | 32 | 960 | 15/5 | 64 | 2560 | 49,152 | 2048 (max_pos 8192, RoPE \u03b8=100k) | YES | GQA, MobileLLM-shaped deep+thin\n\u2022 SmolLM2-135M | 135M | 30 | 576 | 9/3 | 64 | 1536 | 49,152 | 2048 | YES | GQA\n\u2022 SmolLM3-3B | 3.08B | 36 | 2048 | 32/4 | 64 | \u2014 | 128,256 | 4096\u2192128k | YES | NoPE every 4th layer, intra-doc masking\n\u2022 Qwen2.5-0.5B | 494M | 24 | 896 | 14/2 | 64 | 4864 | 151,936 | 32k (RoPE \u03b8=1e6) | YES | GQA 7:1\n\u2022 Qwen3-0.6B | 596M | 28 | 1024 | 16/8 | 128 (decoupled from d_model) | 3072 | 151,936 | 32k (\u03b8=1e6) | YES | QK-Norm, QKV-bias REMOVED\n\u2022 Gemma-3-270M | 268M (170M emb + 100M body) | 18 | 640 | 4/1 | 256 | 2048 | 262,144 | 32k | YES | 5:1 local:global, sliding window 512, RoPE \u03b8=10k local / 1e6 global, QK-norm\n\u2022 MobileLLM-350M | 345M | 32 | 960 | 15/5 | 64 | \u2014 | 32,000 | 2048 | YES | block-wise layer sharing\n\u2022 MobileLLM-R1-360M | 359M | 15 | 1024 | 16/4 | 64 | 4096 | 128,256 (Llama-3.2 tok) | 4k | YES | QK-norm\n\u2022 MobileLLM-R1-950M | 949M | 22 | 1536 | 24/6 | 64 | 6144 | 128,256 | 4k | YES | QK-norm\n\u2022 OLMo-2-1B | 1.48B | 16 | 2048 | 16/16 (MHA, no GQA) | 128 | 8192 | 100,352 | 4096 (\u03b8=500k) | NO | QK-norm, reordered/post-norm, z-loss\n\u2022 Pythia-410M | 410M | 24 | 1024 | 16/16 | 64 | 4096 | 50,304 | 2048 | NO | parallel attn+MLP, rotary on 25% of dims\n\u2022 TinyLlama-1.1B | 1.1B | 22 | 2048 | 32/4 | 64 | 5632 | 32,000 | 2048 (\u03b8=10k) | NO | vanilla Llama-2\n\u2022 Llama-3.2-1B | 1.24B | 16 | 2048 | 32/8 | 64 | 8192 | 128,256 | 128k (\u03b8=500k) | YES | pruned from 3.1-8B + logit distillation\n\u2022 LFM2-350M | 354M | 16 blocks (10 LIV-conv + 6 GQA) | \u2014 | \u2014 | \u2014 | \u2014 | 65,536 | 32k | \u2014 | hybrid conv/attn, distilled from LFM1-7B\n\u2022 Falcon-E-1B | 1.8B ternary | \u2014 | \u2014 | \u2014 | \u2014 | \u2014 | 32,678 | \u2014 | \u2014 | BitNet 1.58-bit {-1,0,1}, LayerNorm removed inside BitNet layers\n\u2022 index-1.9B | 1.9B non-emb | 36 | 2048 | 16 | 128 | 5888 | 65,029 | 4096 | \u2014 | Norm-Head, explicit deep-and-narrow\n\u2022 nanochat d20 | 561M | 20 | 1280 | 10 | 128 | \u2014 | 65,536 | 2048 | NO (separate LRs) | Muon+AdamW hybrid\n\u2022 DataDecide-530M (Ai2) | 530M | 16 | 1344 | 16 | 84 | \u2014 | 50,280 | 2048 | \u2014 | OLMo-style\n\u2022 >>> PLASMA 1.1 | 521.6M | 26 | 1280 | 20/4 | 64 | 3584 | 48,000 | 1024 (\u03b8=10k) | YES | no QK-norm, no z-loss, flat std=0.02 init",
-        "evidence": "Configs read directly: huggingface.co/HuggingFaceTB/SmolLM2-360M/blob/main/config.json (960/32/15/5/2560/49152); Qwen/Qwen3-0.6B-Base/config.json (1024/28/16/8, head_dim 128, intermediate 3072, vocab 151936, tie=true, \u03b8=1e6); Qwen/Qwen2.5-0.5B/config.json (896/24/14/2/4864); unsloth/gemma-3-270m/config.json (640/18/4/1, head_dim 256, FFN 2048, vocab 262144, sliding_window 512, sliding_window_pattern 6, rope_local_base_freq 10000, rope_theta 1e6); allenai/OLMo-2-0425-1B/config.json (2048/16/16/16/8192, vocab 100352, \u03b8=500000, tie=false). MobileLLM-R1 paper Table: 360M = 15L/1024/16 heads/4 KV/4096 FFN/359.4M params; 950M = 22L/1536/24/6/6144/949.2M; all use Llama-3.2 128k tokenizer, weight sharing between input/output embeddings, QK-norm. Plasma numbers verified by reading C:\\Users\\Evan Borodow\\Downloads\\1386.ai\\configs\\pretrain_1.1_v2.yaml and src/model/transformer.py; hand-computed param count = 26 \u00d7 17,697,280 + 61,440,000 + 1,280 = 521,570,560.",
+        "evidence": "Configs read directly: huggingface.co/HuggingFaceTB/SmolLM2-360M/blob/main/config.json (960/32/15/5/2560/49152); Qwen/Qwen3-0.6B-Base/config.json (1024/28/16/8, head_dim 128, intermediate 3072, vocab 151936, tie=true, \u03b8=1e6); Qwen/Qwen2.5-0.5B/config.json (896/24/14/2/4864); unsloth/gemma-3-270m/config.json (640/18/4/1, head_dim 256, FFN 2048, vocab 262144, sliding_window 512, sliding_window_pattern 6, rope_local_base_freq 10000, rope_theta 1e6); allenai/OLMo-2-0425-1B/config.json (2048/16/16/16/8192, vocab 100352, \u03b8=500000, tie=false). MobileLLM-R1 paper Table: 360M = 15L/1024/16 heads/4 KV/4096 FFN/359.4M params; 950M = 22L/1536/24/6/6144/949.2M; all use Llama-3.2 128k tokenizer, weight sharing between input/output embeddings, QK-norm. Plasma numbers verified by reading C:\\Users\\eb1386\\Downloads\\1386.ai\\configs\\pretrain_1.1_v2.yaml and src/model/transformer.py; hand-computed param count = 26 \u00d7 17,697,280 + 61,440,000 + 1,280 = 521,570,560.",
         "source": "https://huggingface.co/HuggingFaceTB/SmolLM2-360M/blob/main/config.json , https://huggingface.co/Qwen/Qwen3-0.6B-Base/blob/main/config.json , https://huggingface.co/Qwen/Qwen2.5-0.5B/blob/main/config.json , https://huggingface.co/unsloth/gemma-3-270m/blob/main/config.json , https://huggingface.co/allenai/OLMo-2-0425-1B/blob/main/config.json , https://arxiv.org/html/2509.24945v3 , https://arxiv.org/html/2401.02385v2 , https://arxiv.org/html/2607.09885v1"
       },
       {
@@ -387,7 +387,7 @@
       {
         "claim": "INITIALIZATION BUG-LEVEL ISSUE: src/model/transformer.py::_init_weights applies a flat std=0.02 to EVERY nn.Linear and nn.Embedding, with no depth scaling on residual output projections. Standard GPT-2/Llama practice scales o_proj and down_proj by 1/sqrt(2\u00b7n_layers); at 26 layers that is 0.02/sqrt(52) = 0.00277 \u2014 a 7.2\u00d7 reduction. Without it, residual-stream variance grows linearly with depth, which forces a lower usable LR and is exactly the failure mode that low-LR runs mask. The Smol Training Playbook lists init std 0.02 for SmolLM3 but that is the *input* std, with residual scaling applied separately; DeepSeek uses 0.006 at larger widths.",
         "evidence": "Verbatim from src/model/transformer.py:\n    def _init_weights(self):\n        std = 0.02\n        for module in self.modules():\n            if isinstance(module, nn.Linear):\n                nn.init.normal_(module.weight, mean=0.0, std=std)\n            elif isinstance(module, nn.Embedding):\n                nn.init.normal_(module.weight, mean=0.0, std=std)\nNo per-module fan-in scaling and no residual/depth scaling. Note also that down_proj has fan_in=3584, for which 1/sqrt(3584)=0.0167, while q_proj has fan_in=1280 \u2192 1/sqrt(1280)=0.0280; a single flat 0.02 is not principled for either.",
-        "source": "C:\\Users\\Evan Borodow\\Downloads\\1386.ai\\src\\model\\transformer.py"
+        "source": "C:\\Users\\eb1386\\Downloads\\1386.ai\\src\\model\\transformer.py"
       },
       {
         "claim": "THROUGHPUT: 13,500 tok/s is ~28% MFU on an RTX 5080 and there is a real 1.6\u20132.1\u00d7 available, but not 3\u00d7. Per-token fwd+bwd math for Plasma = 6 \u00d7 521.6e6 = 3.13 GFLOP plus ~0.41 GFLOP of attention at seq 1024 \u2192 ~3.54 GFLOP/token. At 13,500 tok/s that is 47.8 TFLOP/s of useful math; gradient checkpointing adds ~33% recompute \u2192 ~63.6 TFLOP/s of actual hardware work. RTX 5080 dense BF16 tensor peak \u2248 225 TFLOP/s (the marketed 450 figure is 2:4-sparse) \u2192 28% MFU. For calibration, TinyLlama reported 24,000 tok/s for a 1.1B model on a single A100-40G = 158 TFLOP/s of a 312 TFLOP/s peak = 51% MFU, with FlashAttention-2, fused ops, and NO gradient checkpointing.",
@@ -397,7 +397,7 @@
       {
         "claim": "FOUR CONCRETE THROUGHPUT DEFECTS IN THE TRAINING LOOP. (1) No torch.compile \u2014 `grep -E 'torch\\.compile'` over the repo hits only scripts/bench_throughput.py, never src/train/train.py. (2) micro_batch_size=2 \u00d7 seq_len=1024 = 2,048 tokens per forward pass, far too small to saturate 336 tensor cores; nanochat uses 32\u00d72048 = 65,536 tokens per device forward. (3) `accum_loss += loss.item()` sits INSIDE the `for micro_step in range(grad_accum)` loop, forcing a full CUDA device synchronization 16 times per optimizer step \u2014 at 2,048-token micro-batches the kernel queue cannot stay ahead of the CPU. (4) GQA expansion in src/model/attention.py does `k.unsqueeze(2).expand(...).reshape(...)`, and reshape-after-expand materializes a real 5\u00d7 copy of K and V; PyTorch \u22652.5 supports `F.scaled_dot_product_attention(..., enable_gqa=True)` which skips the copy entirely.",
         "evidence": "Grep result: only scripts\\bench_throughput.py:38 contains `torch.compile`. src/train/train.py inner loop:\n        for micro_step in range(grad_accum):\n            ...\n            loss.backward()\n            accum_loss += loss.item()      # <-- device sync, 16\u00d7 per step\n            tokens_processed += x.numel()\nsrc/model/attention.py:\n            k = k.unsqueeze(2).expand(-1, -1, self.num_kv_groups, -1, -1)\n            k = k.reshape(B, self.num_heads, KV_S, self.head_dim)   # forces a copy\nConfig: micro_batch_size: 2, gradient_accumulation: 16, seq_len: 1024.",
-        "source": "C:\\Users\\Evan Borodow\\Downloads\\1386.ai\\src\\train\\train.py , C:\\Users\\Evan Borodow\\Downloads\\1386.ai\\src\\model\\attention.py"
+        "source": "C:\\Users\\eb1386\\Downloads\\1386.ai\\src\\train\\train.py , C:\\Users\\eb1386\\Downloads\\1386.ai\\src\\model\\attention.py"
       },
       {
         "claim": "SCHEDULE: cosine is the minority choice among 2024\u20132026 small models; WSD (Warmup-Stable-Decay) is now standard and is strictly better for a compute-constrained single-GPU run. SmolLM2 (all sizes), SmolLM3, index-1.9B, and Falcon-E all use WSD. Decay fractions: SmolLM2-1.7B 10%, SmolLM2-135M/360M 20%, index-1.9B decays over the final 400B of 2.8T tokens (14%) from 5e-4 down to 5e-6. The operational advantage: the stable phase can be extended indefinitely without invalidating the schedule, so if throughput improves mid-run you simply keep training and decay later \u2014 impossible with a cosine schedule pinned to max_steps=320,000. OLMo-2 gets the same benefit via a stage-2 anneal-to-zero on 50B high-quality tokens plus model souping.",
@@ -407,7 +407,7 @@
       {
         "claim": "CONTEXT LENGTH 1024 IS THE SHORTEST OF ANY MODEL SURVEYED. Every comparable model uses \u22652048 during pretraining: MobileLLM 2048, TinyLlama 2048, Pythia 2048, SmolLM2 2048, nanochat 2048, MobileLLM-R1 2048 (pretrain) \u2192 4096 (midtrain), SmolLM3 4096, Qwen3 4096 \u2192 32,768, OLMo-2 4096. Plasma's finetune_1.1_v2.yaml also runs SFT at seq_len 1024, which truncates multi-turn chat and leaves almost no room for chain-of-thought \u2014 a direct structural cause of the reported ~0% on multi-step reasoning. Going 1024\u21922048 costs only ~13% more attention FLOPs at this model width (attention is ~11.6% of per-token FLOPs at 1024).",
         "evidence": "Plasma configs/pretrain_1.1_v2.yaml `max_seq_len: 1024` / `seq_len: 1024`; configs/finetune_1.1_v2.yaml same. MobileLLM-R1: 'Batch size 16, sequence length 2048' pretrain, 'batch size 4, sequence length 4k' midtrain, reasoning SFT at 32k. SmolLM3 'global batch size of 2.36M tokens with 4096 sequence length'. Attention FLOP share computed as 12\u00b7L\u00b7s\u00b7d per token / (6N) = 12\u00b726\u00b71024\u00b71280 / (6\u00b7521.6e6) \u2248 0.13.",
-        "source": "C:\\Users\\Evan Borodow\\Downloads\\1386.ai\\configs\\pretrain_1.1_v2.yaml , https://arxiv.org/html/2509.24945v3 , https://github.com/huggingface/blog/blob/main/smollm3.md"
+        "source": "C:\\Users\\eb1386\\Downloads\\1386.ai\\configs\\pretrain_1.1_v2.yaml , https://arxiv.org/html/2509.24945v3 , https://github.com/huggingface/blog/blob/main/smollm3.md"
       },
       {
         "claim": "EVERY top sub-1B model of 2024\u20132026 is DISTILLED from a larger teacher \u2014 Plasma 1.1 is not. Llama-3.2-1B: pruned from Llama-3.1-8B then 'logits from the Llama 3.1 8B and 70B models were incorporated into the pretraining stage... used as token-level targets'. Qwen3-0.6B: 'For smaller models, we use strong-to-weak distillation, leveraging both off-policy and on-policy knowledge transfer from larger models... significantly outperforms reinforcement learning in performance and training efficiency, requiring only 1/10 of the GPU hours'. Gemma-3-270M: 'trained with distillation'. LFM2-350M: 'Knowledge distillation using LFM1-7B as teacher model'. MobileLLM-R1: mid-training 'includes knowledge distillation with Llama-3.1-8B-Instruct teacher'. SmolLM2's Cosmopedia-v2 (28B tokens) is itself teacher-generated synthetic data from Mixtral.",
@@ -422,7 +422,7 @@
       {
         "claim": "SFT LEARNING RATE IS ALSO ~5\u00d7 TOO LOW. Plasma's configs/finetune_1.1_v2.yaml uses learning_rate 1.0e-5 with a 32,768-token batch for 16,000 steps (\u22483 epochs). SmolLM2 SFT uses LR 3.0e-4 with batch 128 \u00d7 seq 8192 \u2248 1.05M tokens for 2 epochs. Batch-correcting by the Adam sqrt rule: 3.0e-4 / sqrt(1.05e6/32,768) = 3.0e-4/5.66 = 5.3e-5 \u2014 5.3\u00d7 above Plasma's 1.0e-5. MobileLLM-R1's reasoning SFT runs at 8e-5. Plasma is also running 3 epochs where SmolLM2 runs 2 and prior work consistently finds 2\u20134 depending on data volume.",
         "evidence": "Plasma configs/finetune_1.1_v2.yaml: learning_rate 1.0e-5, min_lr 1.0e-6, weight_decay 0.05, max_grad_norm 0.5, max_steps 16000, batch_size 32, seq_len 1024. SmolLM2 post-training: 'SFT learning rate 3.0e-4, batch size 128, sequence length 8192, 2 epochs, dataset SmolTalk; DPO learning rate 1.0e-6, beta 0.5, batch 128, seq 1024, 2 epochs, UltraFeedback'.",
-        "source": "C:\\Users\\Evan Borodow\\Downloads\\1386.ai\\configs\\finetune_1.1_v2.yaml , https://arxiv.org/html/2502.02737v1"
+        "source": "C:\\Users\\eb1386\\Downloads\\1386.ai\\configs\\finetune_1.1_v2.yaml , https://arxiv.org/html/2502.02737v1"
       },
       {
         "claim": "BATCH SIZE 32,768 TOKENS IS 16\u2013120\u00d7 SMALLER THAN ANY REFERENCE AND FORCES 320,000 OPTIMIZER STEPS FOR 10.5B TOKENS. nanochat covers the same 11.2B tokens in 21,400 steps at 524,288 tokens/step. Ai2's critical-batch-size work finds CBS 'scales sublinearly with model size but linearly with the total token budget', and that their batch-size-warmup method (double the batch when CBS grows, scaling LR by sqrt(2)) 'reduces the number of gradient steps used to train OLMo 1B to the same loss as the original run with 43% fewer gradient steps'. Plasma is running ~15\u00d7 more optimizer steps than necessary, paying AdamW-update and kernel-launch overhead 320,000 times on 521M parameters.",
@@ -452,7 +452,7 @@
       {
         "claim": "SEQUENCE PACKING WITHOUT INTRA-DOCUMENT MASKING. SmolLM3 and the Smol Training Playbook both call out intra-document attention masking as a recommended default ('prevent cross-document attention noise'). Plasma's StreamingShardDataset packs a flat token stream into fixed 1024-token windows with no document-boundary mask, so tokens attend across unrelated documents. At seq_len 1024 with an average document far longer than 1024 tokens the practical damage is modest, but it becomes material at 2048+ and it is a ~10-line change.",
         "evidence": "Smol Training Playbook: 'Intra-document masking: Recommended to prevent cross-document attention noise'; listed alongside Attention, Batch Size, No Weight Decay, Tied Embeddings, Learning Rate, WSD and Z-loss as SmolLM3's ablated design decisions. Plasma src/train/train.py constructs StreamingShardDataset(shard_dir, split, seq_len, use_loss_mask) with no document-boundary argument, and src/model/attention.py passes only `is_causal=True`.",
-        "source": "https://gist.github.com/unclecode/e5da5fb6a1d37022b089e243e0d9e00e , C:\\Users\\Evan Borodow\\Downloads\\1386.ai\\src\\train\\train.py"
+        "source": "https://gist.github.com/unclecode/e5da5fb6a1d37022b089e243e0d9e00e , C:\\Users\\eb1386\\Downloads\\1386.ai\\src\\train\\train.py"
       },
       {
         "claim": "QUANTITATIVE CEILING AT 10.5B TOKENS (Hoffmann et al. parametric fit, L = 1.69 + 406.4/N^0.34 + 410.7/D^0.28). For N = 521.6M: at D = 10.5B, L = 1.69 + 0.443 + 0.641 = 2.774 nats/token. The DATA term (0.641) is 45% larger than the MODEL term (0.443) \u2014 the run is data-starved, not capacity-starved. Holding N fixed and raising D: 19.4B \u2192 2.673 (\u22120.10); 45.4B \u2192 2.559 (\u22120.215); 64.8B \u2192 2.519 (\u22120.255); 97B \u2192 2.478 (\u22120.296). For calibration, the CORE gap between nanochat d20 (0.222) and d32 (0.317) corresponds to roughly this magnitude of loss improvement. Conversely, at D = 10.5B the compute-optimal N is ~525M \u2014 so Plasma's 521M size is CORRECT for its budget; shrinking the model would not help, and going to 360M at the same wall-clock (\u224862B tokens) yields L = 2.582, essentially tied with 521M @ 45B.",
@@ -602,12 +602,12 @@
       {
         "claim": "Plasma's initialization is materially wrong for a 26-layer pre-norm residual network: src/model/transformer.py:62-68 applies nn.init.normal_(std=0.02) to EVERY Linear and Embedding with no fan-in scaling and no depth scaling of residual output projections. down_proj has fan_in = 3584, so 0.02 is LARGER than the fan-in-preserving 1/sqrt(3584) = 0.0167 \u2014 the FFN branch amplifies variance at every one of 26 layers.",
         "evidence": "Read of the file: `std = 0.02; for module in self.modules(): if isinstance(module, nn.Linear): nn.init.normal_(module.weight, mean=0.0, std=std)`. GPT-2/nanoGPT scale residual-writing projections by 1/sqrt(2*n_layer) precisely to keep residual-stream variance from growing with depth (nanoGPT: `std=0.02/math.sqrt(2 * config.n_layer)` on c_proj). OLMo 2 independently found their initialization change alone eliminated loss spikes in their ablation setting.",
-        "source": "C:\\Users\\Evan Borodow\\Downloads\\1386.ai\\src\\model\\transformer.py lines 62-68 ; https://github.com/karpathy/nanoGPT/blob/master/model.py ; https://arxiv.org/abs/2501.00656"
+        "source": "C:\\Users\\eb1386\\Downloads\\1386.ai\\src\\model\\transformer.py lines 62-68 ; https://github.com/karpathy/nanoGPT/blob/master/model.py ; https://arxiv.org/abs/2501.00656"
       },
       {
         "claim": "There is no z-loss anywhere in the training loop, and Plasma ties embeddings \u2014 the exact configuration where logit drift is most likely. OLMo 2 and PaLM both use z-loss with coefficient 1e-4 applied as coeff * mean(logsumexp(logits)^2).",
         "evidence": "Grep of src/train/train.py shows only plain `F.cross_entropy(logits.view(-1, logits.size(-1)), y.view(-1))` at lines 216 and 283 \u2014 no auxiliary term. OLMo 2 uses '10^-4 * log^2 Z' regularization, adopted from Chowdhery et al. (PaLM), Chameleon, and Wortsman et al., 'empirically shown to improve run stability'. One study reports z-loss at 1e-3 has no impact on final quality \u2014 it is a free insurance policy, not a quality lever.",
-        "source": "C:\\Users\\Evan Borodow\\Downloads\\1386.ai\\src\\train\\train.py lines 207-216 ; https://arxiv.org/abs/2501.00656 ; https://arxiv.org/pdf/2202.08906 (ST-MoE, z-loss origin)"
+        "source": "C:\\Users\\eb1386\\Downloads\\1386.ai\\src\\train\\train.py lines 207-216 ; https://arxiv.org/abs/2501.00656 ; https://arxiv.org/pdf/2202.08906 (ST-MoE, z-loss origin)"
       },
       {
         "claim": "Training at ctx 1024 is NOT crippling Plasma \u2014 the 2025 SkyLadder result is that at a FIXED token budget, shorter pretraining context beats longer context on standard short benchmarks, and the gap is large.",
@@ -642,7 +642,7 @@
       {
         "claim": "MoE is not worth it for Plasma on one 16GB card. The 2025 tiny-scale dense-vs-sparse study found that when matched on TOTAL parameters \u2014 which is exactly what 16GB of VRAM constrains \u2014 the dense baseline stays slightly stronger; MoE only wins when matched on ACTIVE parameters, which is an inference-latency objective, not a VRAM objective.",
         "evidence": "'When matching active parameters, the stabilized top-2 MoE clearly outperformed the dense baseline. However, when matching total parameters, the dense baseline remained slightly stronger.' The memory wall is decisive: 'all experts' parameters, gradients, and optimizer states must reside in memory during training even though only K activate per token'. Plasma already sits at 15.87-16.30 GB peak (97%) of 17.1GB with a dense 521M model at 16 bytes/param of fp32 AdamW state (8.35 GB) \u2014 there is no room for extra experts.",
-        "source": "https://arxiv.org/html/2605.13769v1 (Dense vs Sparse Pretraining at Tiny Scale) ; https://www.cerebras.ai/blog/moe-guide-scale ; C:\\Users\\Evan Borodow\\Downloads\\1386.ai\\configs\\pretrain_1.1.yaml comments"
+        "source": "https://arxiv.org/html/2605.13769v1 (Dense vs Sparse Pretraining at Tiny Scale) ; https://www.cerebras.ai/blog/moe-guide-scale ; C:\\Users\\eb1386\\Downloads\\1386.ai\\configs\\pretrain_1.1.yaml comments"
       },
       {
         "claim": "MLA and sliding-window/local-global interleaving solve problems Plasma does not have at ctx 1024. Plasma's full KV cache at 1024 tokens is 26.0 KB/token = 27 MB total \u2014 three orders of magnitude below where cache compression matters. Gemma 3's 5:1 local:global with a 1024-token window is exactly a no-op when the whole context IS 1024.",
@@ -657,12 +657,12 @@
       {
         "claim": "Three concrete code-level throughput/memory defects in the model and loss path, all of which cap what architecture changes are affordable. (1) src/model/attention.py:53-57 expands GQA KV heads with .unsqueeze().expand().reshape(), and reshape on an expanded (non-contiguous) tensor forces a full materialization of K and V at 20 heads instead of 4 \u2014 PyTorch SDPA has enable_gqa=True which avoids this entirely. (2) src/model/rope.py casts q and k to float32 and uses torch.view_as_complex complex64 math every layer; the real-valued cos/sin + rotate_half formulation is materially cheaper. (3) cross_entropy materializes full fp32 logits: [2, 1024, 48000] = 393 MB, plus the log_softmax saved tensor, ~1 GB of the 16 GB budget for one scalar.",
         "evidence": "Direct read of the files. Cut Cross-Entropy (Apple, 2024) reduces the loss computation from 24 GB to 1 MB on Gemma 2 2B and the total classifier-head training memory from 28 GB to 1 GB by never materializing logits in global memory; Liger-Kernel's fused linear cross-entropy achieves ~84% peak-memory reduction on that layer. Also src/train/train.py:214 calls loss.item() inside the gradient-accumulation loop, forcing 16 GPU syncs per optimizer step.",
-        "source": "C:\\Users\\Evan Borodow\\Downloads\\1386.ai\\src\\model\\attention.py lines 51-57 ; src\\model\\rope.py lines 17-24 ; src\\train\\train.py line 214 ; https://arxiv.org/abs/2411.09009 (Cut Your Losses in Large-Vocabulary Language Models)"
+        "source": "C:\\Users\\eb1386\\Downloads\\1386.ai\\src\\model\\attention.py lines 51-57 ; src\\model\\rope.py lines 17-24 ; src\\train\\train.py line 214 ; https://arxiv.org/abs/2411.09009 (Cut Your Losses in Large-Vocabulary Language Models)"
       },
       {
         "claim": "Plasma's RoPE uses the INTERLEAVED (adjacent-pair, original Meta LLaMA) convention via view_as_complex on reshape(..., D//2, 2), not the half-split rotate_half convention used by HuggingFace Llama/Gemma/Qwen. This is self-consistent and correct, but it silently blocks loading or exporting HF-format weights.",
         "evidence": "src/model/rope.py:21: `x_complex = torch.view_as_complex(x.float().reshape(B, H, S, D // 2, 2))`. SmolLM2-360M's config explicitly carries `\"rope_interleaved\": false` to record this exact distinction.",
-        "source": "C:\\Users\\Evan Borodow\\Downloads\\1386.ai\\src\\model\\rope.py ; https://huggingface.co/HuggingFaceTB/SmolLM2-360M/raw/main/config.json"
+        "source": "C:\\Users\\eb1386\\Downloads\\1386.ai\\src\\model\\rope.py ; https://huggingface.co/HuggingFaceTB/SmolLM2-360M/raw/main/config.json"
       },
       {
         "claim": "The dominant gap is not architecture, it is data volume. Plasma trains 521M params on 10.5B tokens = 20 tokens/param (textbook Chinchilla). Every small model that actually performs well is overtrained by 2-3 orders of magnitude: SmolLM2-360M = 4T tokens = 11,111 tokens/param; SmolLM2-135M = 2T; SmolLM3-3B = 11T. No architecture change can recover a 500x data deficit.",
@@ -814,7 +814,7 @@
       {
         "claim": "src/train/train.py forces a GPU\u2192CPU sync on every micro-step via accum_loss += loss.item() inside the gradient-accumulation loop. This is a real throughput tax today (16 syncs/step) and would become 64\u2013128 syncs/step under the recommended larger batch. betas are also hardcoded (0.9, 0.95), so the \u03b22 fix requires a code edit, not a config edit.",
         "evidence": "src/train/train.py, inner loop: `loss.backward()` then `accum_loss += loss.item()` \u2014 .item() blocks the CPU until the backward completes, serializing the H2D pipeline every 2048 tokens. Optimizer construction: `torch.optim.AdamW(..., betas=(0.9, 0.95), fused=device.type=='cuda')` \u2014 \u03b22 is a literal. src/train/scheduler.py `CosineScheduler.get_lr` implements cosine to `min_lr` with no linear/D2Z option. Fix: accumulate `accum_loss_t += loss.detach()` on-GPU and call `.item()` only at `log_interval`.",
-        "source": "C:\\Users\\Evan Borodow\\Downloads\\1386.ai\\src\\train\\train.py ; C:\\Users\\Evan Borodow\\Downloads\\1386.ai\\src\\train\\scheduler.py"
+        "source": "C:\\Users\\eb1386\\Downloads\\1386.ai\\src\\train\\train.py ; C:\\Users\\eb1386\\Downloads\\1386.ai\\src\\train\\scheduler.py"
       },
       {
         "claim": "Estimated cost of the current (LR, batch) pair: roughly 0.06\u20130.15 nats of final loss, equivalent to throwing away 40\u2013130% of the 9-day compute budget. The LR error dominates; the batch error is secondary.",
@@ -1162,7 +1162,7 @@
       {
         "claim": "ROOT CAUSE OF ~0% EXECUTABLE CODE: the Plasma 1.1 tokenizer physically cannot represent Python indentation. `scripts/train_tokenizer.py` never sets `remove_extra_whitespaces=False`, and SentencePiece defaults that flag to True, so every run of spaces collapses to a single space. Verified on the shipped `data/tokenizer_1.1.model`: encode\u2192decode of `'class A:\\n    def f(self):\\n        if True:\\n            return 1\\n'` returns `'class A:\\n def f(self):\\n if True:\\n return 1\\n'` \u2014 all four nesting levels flattened to one space. A generated function containing ANY nested block therefore raises IndentationError.",
         "evidence": "Executed locally: `compile(sp.decode(sp.encode('def is_even(n):\\n    if n % 2 == 0:\\n        return True\\n    return False\\n')))` \u2192 `IndentationError: expected an indented block after 'if' statement on line 2`. A flat one-level function (`def double(n):\\n    return n*2`) DOES compile, which is exactly the observed signature: ~0% on real HumanEval/MBPP-style tasks (nearly all need a loop or conditional) while trivial one-liners occasionally work. tokenizer_1.0 is worse \u2014 it drops newlines entirely (`'class A: def f(self): if True: return 1'`).",
-        "source": "C:\\Users\\Evan Borodow\\Downloads\\1386.ai\\scripts\\train_tokenizer.py lines 89-104 (spm.SentencePieceTrainer.train call, no remove_extra_whitespaces arg); verified against C:\\Users\\Evan Borodow\\Downloads\\1386.ai\\data\\tokenizer_1.1.model with sentencepiece 0.2.1"
+        "source": "C:\\Users\\eb1386\\Downloads\\1386.ai\\scripts\\train_tokenizer.py lines 89-104 (spm.SentencePieceTrainer.train call, no remove_extra_whitespaces arg); verified against C:\\Users\\eb1386\\Downloads\\1386.ai\\data\\tokenizer_1.1.model with sentencepiece 0.2.1"
       },
       {
         "claim": "ZERO-RETRAIN WORKAROUND EXISTS: TAB characters survive the current tokenizer exactly, via byte fallback `<0x09>`. Tab-indented Python round-trips bit-exact through tokenizer_1.1 today. Cost is +31% tokens on indented code (34 tokens vs 26 for a 5-line nested class).",
@@ -1172,22 +1172,22 @@
       {
         "claim": "SECOND, INDEPENDENT INDENTATION DESTROYER in the data path: `src/data/clean.py::clean_text` collapses all non-newline whitespace (`re.sub(r\"[^\\S\\n]+\", \" \", text)`, line 12) and then strips every single line (`[line.strip() for line in text.split(\"\\n\")]`, line 14). Any code passed through this function loses layout before the tokenizer ever sees it.",
         "evidence": "Direct read of the file. It is currently not imported anywhere in scripts/ or src/ (grep found no callers), so it may be dead code from the 1.0 pipeline \u2014 but it must not be reused for code or math (LaTeX alignment also dies).",
-        "source": "C:\\Users\\Evan Borodow\\Downloads\\1386.ai\\src\\data\\clean.py lines 12-16"
+        "source": "C:\\Users\\eb1386\\Downloads\\1386.ai\\src\\data\\clean.py lines 12-16"
       },
       {
         "claim": "THIRD CODE-DAMAGING BUG: `scripts/build_pretrain_corpus.py::text_docs()` treats a blank line as a document boundary and drops fragments under 200 chars (120 for StackExchange). Python files have blank lines between functions by convention (PEP 8), so every code file is shredded into disconnected fragments, each `.strip()`ed (which also kills the first line's indentation of any fragment that began mid-block).",
         "evidence": "`text_docs()` lines 54-71: `if not line.strip(): ... yield doc`; `doc = \"\\n\".join(buffer).strip()`. `SOURCES[\"code\"] = (RAW/\"code_clean.txt\", 0.15)` routes through the `else` branch at line 96-97, i.e. straight into `text_docs`.",
-        "source": "C:\\Users\\Evan Borodow\\Downloads\\1386.ai\\scripts\\build_pretrain_corpus.py lines 36-42, 54-71, 96-97"
+        "source": "C:\\Users\\eb1386\\Downloads\\1386.ai\\scripts\\build_pretrain_corpus.py lines 36-42, 54-71, 96-97"
       },
       {
         "claim": "The SFT mix contains ZERO code-instruction data. 430k capped examples across SlimOrca 120k, UltraChat 80k, WizardLM 50k, MetaMath 45k, Alpaca 40k, HH-helpful 30k, OASST 25k, Capybara 15k, Dolly 15k, No-Robots 10k. No Magicoder OSS-Instruct, no Evol-CodeAlpaca, no self-oss-instruct, no CodeAlpaca. There is no supervision anywhere that teaches 'write me a Python function'.",
         "evidence": "`SOURCES` dict at lines 30-41 of the SFT builder; `\"synthetic_included\": False` in the emitted manifest.",
-        "source": "C:\\Users\\Evan Borodow\\Downloads\\1386.ai\\scripts\\build_sft_v2.py lines 30-41, 217"
+        "source": "C:\\Users\\eb1386\\Downloads\\1386.ai\\scripts\\build_sft_v2.py lines 30-41, 217"
       },
       {
         "claim": "The pretrain corpus contains ~0% dedicated mathematics. Composition is FineWeb-Edu 4.49B (59.7%), code 0.97B (12.9%), Wikipedia 0.93B (12.4%), StackExchange 0.77B (10.2%), arXiv 0.35B (4.7%) = 7.52B unique. arXiv is research math (LaTeX proofs), not grade-school/computational math, and does not transfer to GSM8K-style problems.",
         "evidence": "SOURCES weights in build_pretrain_corpus.py (fineweb 0.42, wiki 0.20, code 0.15, stackexchange 0.13, arxiv 0.10) plus the stated corpus token counts. No OpenWebMath, FineMath, InfiMM-WebMath, or MegaMath anywhere in the repo.",
-        "source": "C:\\Users\\Evan Borodow\\Downloads\\1386.ai\\scripts\\build_pretrain_corpus.py lines 36-42"
+        "source": "C:\\Users\\eb1386\\Downloads\\1386.ai\\scripts\\build_pretrain_corpus.py lines 36-42"
       },
       {
         "claim": "Digit tokenization in Plasma is already CORRECT and this lever is exhausted. Verified: '123 + 456 = 579' \u2192 ['\u2581','1','2','3','\u2581+','\u2581','4','5','6','\u2581=','\u2581','5','7','9']; '1,234,567' \u2192 digits and commas all separate; '3.14159' \u2192 digit-per-token. Single-digit tokenization is the empirically best scheme for arithmetic; there is nothing left to gain from re-tokenizing numbers.",
@@ -1282,12 +1282,12 @@
       {
         "claim": "EVAL HARNESS UNDER-BUDGETS TOKENS for any scratchpad/CoT approach. `scripts/benchmark_v2.py` uses max_tokens=160 for math/reasoning and 220 for code (`run(\"code\", CODE, ..., 220)`). Column-wise addition CoT on 8-digit operands alone runs 150-250 tokens with digit-per-token tokenization; a Goat-style multiplication decomposition runs 200-400. Any improvement from CoT training will be invisible or truncated under the current settings.",
         "evidence": "Read of scripts/benchmark_v2.py: `def gen(model, tok, user, device, max_tokens=160)` and `run(\"code\", CODE, lambda it, r: run_code(r, it[\"fn\"], it[\"tests\"]), 220)`.",
-        "source": "C:\\Users\\Evan Borodow\\Downloads\\1386.ai\\scripts\\benchmark_v2.py lines 54, 201"
+        "source": "C:\\Users\\eb1386\\Downloads\\1386.ai\\scripts\\benchmark_v2.py lines 54, 201"
       },
       {
         "claim": "The pretrain schedule has no annealing hook: `configs/pretrain_1.1_v2.yaml` uses a plain cosine from LR 1.2e-4 to min_lr 1.2e-5 over 320,000 steps with a single fixed shard directory (`data/shards_1.1_v2`). There is no mechanism to change the data mixture late in training, which is precisely where every cited lab gets its math/code gains. The SFT config uses LR 1.0e-5 over 16,000 steps (~3 epochs of 168,539 sequences), which is conservative for a 521M full finetune.",
         "evidence": "Direct read of both YAMLs.",
-        "source": "C:\\Users\\Evan Borodow\\Downloads\\1386.ai\\configs\\pretrain_1.1_v2.yaml and configs\\finetune_1.1_v2.yaml"
+        "source": "C:\\Users\\eb1386\\Downloads\\1386.ai\\configs\\pretrain_1.1_v2.yaml and configs\\finetune_1.1_v2.yaml"
       }
     ],
     "recommendations": [
@@ -1417,12 +1417,12 @@
       {
         "claim": "MEASURED BUG in the current pipeline: scripts/build_sft_v2.py uses 'wrapped' packing (np.concatenate of every conversation, then reshape to 1025-token rows). With 423,235 conversations packed into 171,978 rows, approximately 171,977 row boundaries each fall inside a conversation, so ~40.6% of all conversations are split across a row boundary. Every split produces (a) a head fragment with no EOS and (b) a tail fragment where the model is supervised to continue an assistant answer with no question in context.",
         "evidence": "data/sft_shards_1.1_v2/meta.yaml: n_train_sequences 168539, n_val_sequences 3439 (=171,978 rows), total_tokens 176,278,465, source_counts sum = 423,235 conversations, mean 417 tokens/conversation. Code: `all_tokens = np.concatenate(conv_tokens); n_seq = len(all_tokens) // PACK_LEN; packed = all_tokens[:trim].reshape(n_seq, PACK_LEN)`. 171,977 boundaries / 423,235 conversations = 40.6%.",
-        "source": "C:\\Users\\Evan Borodow\\Downloads\\1386.ai\\scripts\\build_sft_v2.py, C:\\Users\\Evan Borodow\\Downloads\\1386.ai\\data\\sft_shards_1.1_v2\\meta.yaml"
+        "source": "C:\\Users\\eb1386\\Downloads\\1386.ai\\scripts\\build_sft_v2.py, C:\\Users\\eb1386\\Downloads\\1386.ai\\data\\sft_shards_1.1_v2\\meta.yaml"
       },
       {
         "claim": "MEASURED: 11.1% of the SFT conversations exceed the 1024-token context and can never fit in one row, dominated by UltraChat (48.8% over 1024) and Capybara (50.0% over 1024). Length distribution over a 40,000-conversation sample: median 257, mean 417, p90 1072, p95 1330, p99 1723 tokens.",
         "evidence": "Sampled 4,000 rows from each of the 10 instruct_*.jsonl files, tokens estimated as chars/4.0 (calibrated: this reproduces the meta.yaml mean of 417 tokens exactly). Per-source >1024 rates: slimorca 2.4%, ultrachat 48.8%, wizardlm 4.7%, metamath 0.0%, alpaca 0.0%, hh_helpful 0.1%, oasst 1.1%, capybara 50.0%, dolly 1.6%, no_robots 2.0%.",
-        "source": "Direct measurement over C:\\Users\\Evan Borodow\\Downloads\\1386.ai\\data\\raw_1.1\\instruct_*.jsonl"
+        "source": "Direct measurement over C:\\Users\\eb1386\\Downloads\\1386.ai\\data\\raw_1.1\\instruct_*.jsonl"
       },
       {
         "claim": "Naive concatenate-and-chunk packing is quantified as harmful in the literature. Best-fit Packing (which eliminates unnecessary truncation) yields +4.7% reading comprehension, +16.8% context following, +9.2% program synthesis, and up to 58.3% reduction in closed-domain hallucination versus naive concatenation.",
@@ -1437,17 +1437,17 @@
       {
         "claim": "Plasma's attention has no mechanism for document boundaries: src/model/attention.py sets `is_causal = mask is None and kv_cache is None` and the training path passes mask=None, so every token attends to every earlier token in the 1024-window regardless of which conversation it belongs to. RoPE positions also run 0..1023 across the whole row rather than restarting per conversation.",
         "evidence": "src/model/attention.py lines 59-73: `attn_mask = mask; is_causal = mask is None and kv_cache is None; ... F.scaled_dot_product_attention(q, k, v, attn_mask=attn_mask, ..., is_causal=is_causal)`. src/train/train.py calls `logits = model(x)` with no mask argument.",
-        "source": "C:\\Users\\Evan Borodow\\Downloads\\1386.ai\\src\\model\\attention.py, C:\\Users\\Evan Borodow\\Downloads\\1386.ai\\src\\train\\train.py"
+        "source": "C:\\Users\\eb1386\\Downloads\\1386.ai\\src\\model\\attention.py, C:\\Users\\eb1386\\Downloads\\1386.ai\\src\\train\\train.py"
       },
       {
         "claim": "BUG: the masked-loss normalization in src/train/train.py is the exact HuggingFace/Tulu-3 gradient-accumulation bug. Loss is normalized per micro-batch by that micro-batch's own assistant-token count, then divided by grad_accum. With micro_batch=2 and grad_accum=16, each micro-batch is weighted equally instead of each token being weighted equally, so short-answer micro-batches (e.g. MetaMath/Alpaca, median 166/69 tokens) get several times more gradient weight per token than long ones.",
         "evidence": "src/train/train.py: `masked_loss = (loss_per_token * mask_flat).sum() / (mask_flat.sum() + 1e-8); loss = masked_loss / grad_accum`. Tulu 3: 'we opted to use a sum loss instead of averaging (mean loss) when training, which removes the issue by removing the denominator... effectively weighting all tokens equally which led to generally better performance'. Tulu 3 8B card lists 'Loss Accumulation: Sum'. HF issue #24725 and the Oct-2024 gradient-accumulation bug writeups describe the same failure mode.",
-        "source": "C:\\Users\\Evan Borodow\\Downloads\\1386.ai\\src\\train\\train.py , https://huggingface.co/allenai/Llama-3.1-Tulu-3-8B-SFT , https://github.com/huggingface/transformers/issues/24725 , https://unsloth.ai/blog/gradient"
+        "source": "C:\\Users\\eb1386\\Downloads\\1386.ai\\src\\train\\train.py , https://huggingface.co/allenai/Llama-3.1-Tulu-3-8B-SFT , https://github.com/huggingface/transformers/issues/24725 , https://unsloth.ai/blog/gradient"
       },
       {
         "claim": "LIKELY BUG (needs a 3-line verification): scripts/build_sft_v2.py tokenizes each turn segment separately - `sp.encode(text[role_start:label_end])` for 'Assistant: ' (including the trailing space, since ROLE_RE ends in ': ?') and then `sp.encode(text[label_end:next_start])` for the content. With SentencePiece's default add_dummy_prefix, the label segment ends in a '_' piece and the content segment starts with '_The', producing a doubled space token at every single turn boundary that never occurs at inference, where chat.py builds the prompt as one joint string ending in 'Assistant:'.",
         "evidence": "build_sft_v2.py: `ROLE_RE = re.compile(r\"(?:^|\\n)(User|Assistant): ?\")`; `ltoks = sp.encode(text[role_start:label_end], out_type=int)` then `ctoks = sp.encode(text[label_end:next_start], out_type=int)`. src/inference/chat.py line 25: `return f\"User: {last_user}\\nAssistant:\"` - joint encode, no trailing space. Tokenizer is trained with `normalization_rule_name='identity'`, byte_fallback, default add_dummy_prefix.",
-        "source": "C:\\Users\\Evan Borodow\\Downloads\\1386.ai\\scripts\\build_sft_v2.py, C:\\Users\\Evan Borodow\\Downloads\\1386.ai\\src\\inference\\chat.py, C:\\Users\\Evan Borodow\\Downloads\\1386.ai\\scripts\\train_tokenizer.py"
+        "source": "C:\\Users\\eb1386\\Downloads\\1386.ai\\scripts\\build_sft_v2.py, C:\\Users\\eb1386\\Downloads\\1386.ai\\src\\inference\\chat.py, C:\\Users\\eb1386\\Downloads\\1386.ai\\scripts\\train_tokenizer.py"
       },
       {
         "claim": "LIMA's '1,000 examples is enough' does NOT transfer to a 521M model or to benchmark-style evaluation. It was a 65B model judged by human preference on open-ended generation. When you measure with objective task benchmarks instead, post-training performance follows a power law P ~ D^(1/b) in the number of finetuning examples across Llama-3, Llama-2 and Mistral: style saturates at 100-500 examples, but reasoning errors keep dropping substantially through 10,000+ examples.",
@@ -1472,7 +1472,7 @@
       {
         "claim": "Plasma's SFT mixture has ZERO dedicated code data, which fully explains the reported ~0% on executable code. Both reference mixtures allocate 5-15% to code: SmolTalk has Self-OSS-Starcoder2-Instruct 50.7K (4.6%), Tulu 3 has Evol-CodeAlpaca 107,276 + Persona-Python 34,999 (15.1%).",
         "evidence": "data/sft_shards_1.1_v2/meta.yaml source_counts: slimorca 119,975, ultrachat 80,000, wizardlm 49,865, metamath 44,999, alpaca 39,996, hh_helpful 29,990, oasst 20,395, dolly 14,858, capybara 13,677, no_robots 9,480. No code-specific source. No constraint-following source. No summarization/rewriting source. No system-prompt source.",
-        "source": "C:\\Users\\Evan Borodow\\Downloads\\1386.ai\\data\\sft_shards_1.1_v2\\meta.yaml"
+        "source": "C:\\Users\\eb1386\\Downloads\\1386.ai\\data\\sft_shards_1.1_v2\\meta.yaml"
       },
       {
         "claim": "Completion-only (assistant-only) loss is correct for Plasma's data scale, but the evidence is conditional, not absolute. Full-sequence loss ('Instruction Modelling') beats completion-only mainly when (a) instruction:output length ratio is high, roughly above 5-10, and (b) the training set is small, under ~15,000 examples. At 326k examples (Tulu V2) the gain is modest.",
@@ -1492,7 +1492,7 @@
       {
         "claim": "For EOS/stopping, the canonical fix at small scale is a DEDICATED end-of-turn token rather than reusing the pretrained EOS, and PAD must never equal EOS. Plasma is already correct on PAD (pad_id=3, eos_id=2) and does supervise the EOS token (mask=1), but has no end-of-turn token and no chat special tokens at all.",
         "evidence": "LIMA: 'we introduce a special end-of-turn token (EOT) at the end of each utterance; this token plays the same role as EOS of halting generation, but avoids conflation with any other meaning that the pretrained model may have imbued into the preexisting EOS token.' Community consensus on the pad==eos failure: 'when the collator masks labels at pad positions and pad==eos, every EOS label becomes -100, so the model gets no gradient on EOS and never learns to stop.' Plasma: `spm.SentencePieceTrainer.train(..., pad_id=3, unk_id=0, bos_id=1, eos_id=2)` with no user_defined_symbols; build_sft_v2.py does `toks.append(eos_id); mask = np.append(mask, 1)`.",
-        "source": "https://ar5iv.labs.arxiv.org/html/2305.11206 , https://github.com/huggingface/trl/issues/1623 , https://github.com/huggingface/trl/issues/2059 , C:\\Users\\Evan Borodow\\Downloads\\1386.ai\\scripts\\train_tokenizer.py"
+        "source": "https://ar5iv.labs.arxiv.org/html/2305.11206 , https://github.com/huggingface/trl/issues/1623 , https://github.com/huggingface/trl/issues/2059 , C:\\Users\\eb1386\\Downloads\\1386.ai\\scripts\\train_tokenizer.py"
       },
       {
         "claim": "Every reference small-model chat recipe uses dedicated special tokens (ChatML), not plain 'User:/Assistant:' text, and the tokens must be registered as special so they can never be split into subwords. SmolLM2 uses <|im_start|> / <|im_end|>; Tulu 3 uses <|user|> / <|assistant|> / <|endoftext|>.",
@@ -1522,7 +1522,7 @@
       {
         "claim": "Sequence-length curriculum is a non-issue for Plasma and should not be pursued: context is fixed at 1024 for both pretrain and SFT, and the length distribution is already dominated by short examples (median 257). The actionable version of the same concern is per-source length handling, not a curriculum schedule.",
         "evidence": "configs/pretrain_1.1_v2.yaml and configs/finetune_1.1_v2.yaml both set `max_seq_len: 1024` / `seq_len: 1024`; rope_theta 10000. Measured length distribution: median 257, p90 1072. No 2024-2026 SFT recipe among SmolLM2, Tulu 3, or SmolTulu uses a length curriculum; all use a fixed max length (8192 or 4096) with packing.",
-        "source": "C:\\Users\\Evan Borodow\\Downloads\\1386.ai\\configs\\finetune_1.1_v2.yaml , https://raw.githubusercontent.com/huggingface/alignment-handbook/main/recipes/smollm2/sft/config_smol.yaml"
+        "source": "C:\\Users\\eb1386\\Downloads\\1386.ai\\configs\\finetune_1.1_v2.yaml , https://raw.githubusercontent.com/huggingface/alignment-handbook/main/recipes/smollm2/sft/config_smol.yaml"
       }
     ],
     "recommendations": [
@@ -1949,7 +1949,7 @@
       {
         "claim": "Plasma's current headline eval cannot support the 43% vs 41% claim. scripts/benchmark_1.1_vs_1.0.py uses n=25 prompts, 0/1/2 heuristic keyword scoring, max 50 points. For a mean of 0.86/2 with near-bimodal scores, per-item sd ~0.99 on the 0-2 scale => SE of the reported percentage = 0.99/2/sqrt(25) = 9.9 percentage points; 95% CI = +/-19.4pp. Even paired across the two models (assuming r=0.5), SE of the difference is still ~9.9pp. The observed 2pp gap is ~0.2 SE \u2014 statistically indistinguishable from zero. scripts/eval_holdout.py is worse: n=16 binary items (SE = 12.5pp) with a hard pass/fail gate at 13/16.",
         "evidence": "Source files read directly: benchmark_1.1_vs_1.0.py lines 20-47 (25 PROMPTS), lines 100-131 (0/1/2 heuristic scorer), lines 159-161 (total/max). eval_holdout.py lines 22-39 (16 TESTS), line 97 sys.exit(0 if passed >= 13 else 1). Miller's sample-size formula n = (z_a/2 + z_b)^2 * (w^2 + s_A^2/K_A + s_B^2/K_B)/d^2 applied with d=0.02 gives n ~ 4,800; with d=0.05 gives n ~ 770.",
-        "source": "C:\\Users\\Evan Borodow\\Downloads\\1386.ai\\scripts\\benchmark_1.1_vs_1.0.py , C:\\Users\\Evan Borodow\\Downloads\\1386.ai\\scripts\\eval_holdout.py , https://arxiv.org/html/2411.00640v1"
+        "source": "C:\\Users\\eb1386\\Downloads\\1386.ai\\scripts\\benchmark_1.1_vs_1.0.py , C:\\Users\\eb1386\\Downloads\\1386.ai\\scripts\\eval_holdout.py , https://arxiv.org/html/2411.00640v1"
       },
       {
         "claim": "Anthropic's 'Adding Error Bars to Evals' gives the exact statistics to use: SE = sqrt(p(1-p)/n) for binary items; clustered SEs when questions come in groups (real benchmarks show clustered SEs 1.10x to 3.05x, 'over 3X larger than naive standard errors'); paired differences on identical questions cut variance ~33% at r=0.5; using next-token probabilities instead of sampled outputs for multiple-choice 'eliminates conditional variance entirely'; and 'new evals should contain at least 1,000 questions' \u2014 their worked example needs ~969 questions to detect a 3pp difference at 80% power.",
@@ -2213,7 +2213,7 @@
       {
         "claim": "Using attn_mask instead of is_causal costs 12% and extra memory \u2014 your training path correctly uses is_causal=True, but your inference/KV-cache path builds an explicit boolean mask.",
         "evidence": "Measured: expand20 + is_causal 1.304 ms vs expand20 + attn_mask 1.459 ms (0.89x). In src/model/attention.py:60-66, training hits is_causal=True (mask is None, kv_cache is None) \u2014 correct. The attn_mask branch only fires during cached generation. Note mem_efficient accepts masks so it is a 12% penalty here, not the catastrophic math-path fallback it would be with real FlashAttention.",
-        "source": "Direct measurement (bench_sdpa3.py) + code review of C:\\Users\\Evan Borodow\\Downloads\\1386.ai\\src\\model\\attention.py"
+        "source": "Direct measurement (bench_sdpa3.py) + code review of C:\\Users\\eb1386\\Downloads\\1386.ai\\src\\model\\attention.py"
       }
     ],
     "recommendations": [
@@ -2274,7 +2274,7 @@
       {
         "claim": "This is NOT the standard continual-pretraining setting the re-warming papers study. At step 40,800 the LR is 1.1626e-4 = 96.9% of peak \u2014 the cosine has barely begun decaying. Every re-warming paper studies resuming from a fully-decayed eta_min checkpoint (a 10x jump, 3e-5 -> 3e-4). Raising to 3e-4 here is a 2.6x jump from a non-decayed point, which is strictly easier and lower-risk than anything in the literature.",
         "evidence": "logs/pretrain_v2.jsonl step 40,750: {\"lr\": 0.00011627, \"loss\": 3.153, \"grad_norm\": 0.7985}. Cosine formula in src/train/scheduler.py with peak 1.2e-4, min 1.2e-5, warmup 3000, max 320000 gives 1.16255e-4 at step 40,800 = 96.9% of peak. 12.75% of steps done, 1.337B of 10.49B tokens.",
-        "source": "C:\\Users\\Evan Borodow\\Downloads\\1386.ai\\logs\\pretrain_v2.jsonl ; C:\\Users\\Evan Borodow\\Downloads\\1386.ai\\src\\train\\scheduler.py"
+        "source": "C:\\Users\\eb1386\\Downloads\\1386.ai\\logs\\pretrain_v2.jsonl ; C:\\Users\\eb1386\\Downloads\\1386.ai\\src\\train\\scheduler.py"
       },
       {
         "claim": "The LR of 1.2e-4 is objectively low for 521M params \u2014 it is exactly the value Ibrahim et al. used for their 10B model. For their 405M model (nearly Plasma's size) they used 3e-4 / min 3e-5, i.e. 2.5x higher.",
@@ -2319,7 +2319,7 @@
       {
         "claim": "Quantifying the LR upgrade: using the fitted scaling law L(s) = L0 + A*S1^-alpha - C*S2 (S1 = area under the LR curve, alpha = 0.550, A = 0.429, C = 0.411), switching from the current cosine to constant-3e-4 + 15% (1-sqrt) decay raises S1 from 21.10 to 78.60 (3.72x) and predicts about -0.045 nats final loss, i.e. perplexity x0.956 (~4.4% better). Raising to 6e-4 only buys -0.057 nats. Changing min_lr from 1.2e-5 to 0 alone is worth about -0.001 nats.",
         "evidence": "Fitted equation from the paper: 'L(s) = 2.628 + 0.429*S1^(-0.550) - 0.411*S2' at eta_max = 2e-4, eta_min = 0, lambda in [0.99, 0.999]. My computation over Plasma's actual schedule (scratchpad/calc.py): S1_banked = 4.669, S1_optionA = 21.102, S1 at eta_const 2e-4/3e-4/4.5e-4/6e-4 = 54.00/78.60/115.49/152.38; predicted delta vs A = -0.036/-0.045/-0.052/-0.057 nats. Note the re-warm itself makes S2 negative and eats most of the extra annealing area, which is why the gain saturates. This estimate is an extrapolation outside the fitted regime and OLMo 2's controlled experiment suggests the true value may be near 0 \u2014 so treat 0 to 0.05 nats as the honest range.",
-        "source": "https://arxiv.org/abs/2408.11029 (Tissue et al., 'Scaling Law with Learning Rate Annealing'), Eq. 1 + Section 3 ; computed in C:\\Users\\Evan Borodow\\AppData\\Local\\Temp\\claude\\c--Users-Evan-Borodow-Downloads-1386-ai\\dc3b45aa-4183-49e6-8ee1-b61d44398b5c\\scratchpad\\calc.py"
+        "source": "https://arxiv.org/abs/2408.11029 (Tissue et al., 'Scaling Law with Learning Rate Annealing'), Eq. 1 + Section 3 ; computed in C:\\Users\\eb1386\\AppData\\Local\\Temp\\claude\\c--Users-eb-Downloads-1386-ai\\dc3b45aa-4183-49e6-8ee1-b61d44398b5c\\scratchpad\\calc.py"
       },
       {
         "claim": "The single highest-value missing ingredient is a mid-training / annealing phase on math + code \u2014 worth 10+ absolute points at small scale, i.e. 100-200x more than the LR fix. This is precisely the failure mode reported (0% executable code, 0% multi-step reasoning, 10-15% arithmetic).",
@@ -2384,12 +2384,12 @@
       {
         "claim": "The throughput premise ('~28% of hardware, likely 2-3x headroom') overstates the opportunity. The project's own benchmark caps the realistic gain at 1.41x, and it is already measured.",
         "evidence": "logs/bench_final.json: BEST = {micro_batch 4, accum 8, grad_ckpt true, compile true, adam8bit false, seq_len 1024, tok_s 17120, peak_gb 11.91, s_per_step 1.914}, 'speedup vs current (mb2+ckpt): 1.41x'. Note that with gradient checkpointing the honest FLOP count is ~8ND (6ND + 33% recompute), so 56 TFLOP/s against an RTX 5080 dense-bf16 ceiling of roughly 220-225 TFLOP/s is ~25% MFU, rising to ~32% with compile \u2014 normal for a 1280-hidden model on consumer hardware, not a 3x bug.",
-        "source": "C:\\Users\\Evan Borodow\\Downloads\\1386.ai\\logs\\bench_final.json ; C:\\Users\\Evan Borodow\\Downloads\\1386.ai\\logs\\bench_throughput2.log"
+        "source": "C:\\Users\\eb1386\\Downloads\\1386.ai\\logs\\bench_final.json ; C:\\Users\\eb1386\\Downloads\\1386.ai\\logs\\bench_throughput2.log"
       },
       {
         "claim": "The LR ablation currently running in this repo (scripts/ablate.py, 4 variants x 2000 steps, from random init) will give a systematically misleading answer \u2014 short from-scratch sweeps always favour the highest LR.",
         "evidence": "logs/ablate_lr.log: 'ablation lr_sweep: 4 variants x 2000 steps, vary training.learning_rate: [0.00012, 0.0003, 0.0006, 0.001]'. scripts/ablate.py lines 110-115 set max_steps = args.steps and pass no --resume, so each variant starts from scratch. OLMo 2 warns precisely against this: 'higher learning rates universally perform better early on ... but eventually the lower learning rate setting overtakes the others ... when comparing 3e-4 and 6e-4, the cross-over point is well past 200B tokens. A shorter hyperparameter experiment might come to the wrong conclusion.'",
-        "source": "C:\\Users\\Evan Borodow\\Downloads\\1386.ai\\scripts\\ablate.py ; https://arxiv.org/abs/2501.00656 Section 4.1"
+        "source": "C:\\Users\\eb1386\\Downloads\\1386.ai\\scripts\\ablate.py ; https://arxiv.org/abs/2501.00656 Section 4.1"
       },
       {
         "claim": "Checkpoint averaging during the anneal is a free accuracy gain used by all three of OLMo 2, Llama 3 and the WSD scaling-law work.",
@@ -2399,7 +2399,7 @@
       {
         "claim": "FineMath-4+ (already downloaded to this repo) is the right math corpus and is empirically the best of the open options at anneal time: 2x GSM8K and 6x MATH versus InfiMM-WebMath. Useful returns plateau at roughly 10 epochs of a small math set.",
         "evidence": "SmolLM2: 'All FineMath subsets consistently outperform OWM and InfiMM-WebMath on GSM8K, MATH, and MMLU-STEM. FineMath4+ achieves a 2x improvement on GSM8K and a 6x improvement on MATH compared to InfiMM-WebMath ... Infi-WebMath4+ ... plateaus after 80B tokens (roughly 10 epochs), likely due to data repetition, a trend not seen in FineMath4+.' Local: logs/download_finemath.log 'done: 744,565 docs, 3.50 GB' of HuggingFaceTB/finemath finemath-4plus -> data/raw_1.1/finemath_clean.txt (roughly 0.85-0.9B tokens at ~4 chars/token).",
-        "source": "https://arxiv.org/abs/2502.02737 Section 3.3 ; https://huggingface.co/datasets/HuggingFaceTB/finemath ; C:\\Users\\Evan Borodow\\Downloads\\1386.ai\\logs\\download_finemath.log"
+        "source": "https://arxiv.org/abs/2502.02737 Section 3.3 ; https://huggingface.co/datasets/HuggingFaceTB/finemath ; C:\\Users\\eb1386\\Downloads\\1386.ai\\logs\\download_finemath.log"
       },
       {
         "claim": "There is a cheap, published protocol for validating a data mixture from an existing checkpoint without committing the whole run \u2014 'micro-annealing'. Both Llama 3 and SmolLM2 use it, and it is exactly what Plasma should run against the step-40000 checkpoint.",
@@ -2505,17 +2505,17 @@
       {
         "claim": "ROOT CAUSE OF THE LOSS OSCILLATION: the pretrain shards are domain-stratified by shard index, and the dataloader drains one entire shard per worker before switching. Code content falls from 8\u201324% in shards 0\u201348 to 0\u20132% in shards 56\u201372.",
         "evidence": "Measured directly by decoding 300 random packed sequences per shard from data/shards_1.1_v2 (73 shards x 99,462 seqs). Code fraction by shard: s0=8%, s8=14%, s16=14%, s24=12%, s32=11%, s40=15%, s48=24%, s56=1%, s62=1%, s66=2%, s70=0%, s72=1%. Mechanism is in scripts/build_repretrain_shards.py: choose_source() greedily picks the max-deficit source, sources exhaust at different points (meta.yaml achieved shares vs targets: fineweb 59.7% vs 42%, wikipedia 12.4% vs 20%, code 12.9% vs 15%, stackexchange 10.3% vs 13%, arxiv 4.7% vs 10% \u2014 every source except FineWeb-Edu ran dry), and flush_sequences() only permutes within a 100,000-sequence chunk, so shards are written in stream order and the tail of the corpus is nearly pure web.",
-        "source": "C:\\Users\\Evan Borodow\\Downloads\\1386.ai\\scripts\\build_repretrain_shards.py (lines 80\u201397, 100\u2013121, 216\u2013250); data/shards_1.1_v2/meta.yaml; direct measurement"
+        "source": "C:\\Users\\eb1386\\Downloads\\1386.ai\\scripts\\build_repretrain_shards.py (lines 80\u201397, 100\u2013121, 216\u2013250); data/shards_1.1_v2/meta.yaml; direct measurement"
       },
       {
         "claim": "The oscillation period is set by the dataloader, not the data: StreamingShardDataset yields every sequence of a shard before moving on, so with num_workers=2 / micro_batch=2 / grad_accum=16 each worker supplies 16 sequences per optimizer step and a shard lasts 99,462/16 = 6,216 optimizer steps = 4.18 hours at 2.42 s/step. Both workers flip shards at ~the same time, so the mixture changes as a step function.",
         "evidence": "src/data/dataset.py lines 139\u2013164: `while True: rng.shuffle(order); for si in order: ... for idx in indices: yield`. Shard order is shuffled but consumption is sequential-within-shard. Measured train loss confirms the magnitude: after removing a smooth log/log^2 trend over steps 8,000\u201340,800, residual std = 0.1728 nats with peak-to-peak 0.5859 nats \u2014 matching the reported 2.75<->3.20 (0.45 nat) cycling. Autocorrelation shows a peak at lag 18,750 steps (~3x the predicted 6,216); the 32,800-step record is only ~5 shard periods long so the fundamental cannot be isolated cleanly, but the code-fraction swing of 0\u201324% times a ~2.1 nat web-vs-code entropy gap predicts ~0.50 nats, very close to the observed 0.586.",
-        "source": "C:\\Users\\Evan Borodow\\Downloads\\1386.ai\\src\\data\\dataset.py lines 120\u2013164; logs/pretrain_v2.jsonl (816 points)"
+        "source": "C:\\Users\\eb1386\\Downloads\\1386.ai\\src\\data\\dataset.py lines 120\u2013164; logs/pretrain_v2.jsonl (816 points)"
       },
       {
         "claim": "The fix already exists in the repo but was never applied to the corpus being trained on.",
         "evidence": "scripts/shuffle_shards.py implements a correct two-pass external shuffle (96 random buckets, scatter then in-RAM permute then re-emit 100k-seq shards) and its own docstring names this exact failure: 'when sources exhaust at different points every shard ends up with a different domain mix (e.g. the tail of the corpus is nearly pure web).' data/shards_1.1_v2/meta.yaml contains no `globally_shuffled` key, so the running corpus is the unshuffled one.",
-        "source": "C:\\Users\\Evan Borodow\\Downloads\\1386.ai\\scripts\\shuffle_shards.py; data/shards_1.1_v2/meta.yaml"
+        "source": "C:\\Users\\eb1386\\Downloads\\1386.ai\\scripts\\shuffle_shards.py; data/shards_1.1_v2/meta.yaml"
       },
       {
         "claim": "VALIDATION NOISE FLOOR, measured empirically: 100 sequences gives +/-10.8% on perplexity and is unusable; the run's current 2048 gives +/-2.3%. Intra-sequence token correlation means a 1024-token sequence is worth only ~34 independent tokens.",
@@ -2530,7 +2530,7 @@
       {
         "claim": "TIED-EMBEDDING PATHOLOGY, measured: embedding norm is monotonically inversely proportional to token frequency, with a 1.9x spread. Never-trained rows have the LARGEST norms and are nearly identical to each other.",
         "evidence": "checkpoints/1.1_v2_step_40000.pt, per-token embedding L2 norm bucketed by corpus frequency (counted over 677M tokens from 7 shards): never seen (123 tokens) mean 1.6097 std 0.0023; 1\u2013100 occurrences (830) 1.5336; 100\u20131k (15,403) 1.2519; 1k\u201310k (25,090) 1.0012; 10k\u2013100k (5,898) 0.8856; 100k+ (656) 0.8496. Global mean 1.0761, std 0.2027. The mechanism is the tied output head: every token is a negative class at every position, so unused rows are pushed along -x until their logit is maximally suppressed, and train.py puts tok_emb/output in the no_decay group so nothing shrinks them. The tiny std (0.0023) on never-seen rows shows they have all converged to the same suppressed configuration.",
-        "source": "C:\\Users\\Evan Borodow\\Downloads\\1386.ai\\src\\train\\train.py lines 98\u2013111; direct checkpoint analysis"
+        "source": "C:\\Users\\eb1386\\Downloads\\1386.ai\\src\\train\\train.py lines 98\u2013111; direct checkpoint analysis"
       },
       {
         "claim": "The final RMSNorm gain has grown to 2.58x its initialization to compensate for the small tied-embedding scale \u2014 the network is learning its softmax temperature through a norm gain, which is slow and is exactly what z-loss/logit-scaling exists to avoid.",
@@ -2545,12 +2545,12 @@
       {
         "claim": "SILENT BUG, high severity: every --resume replays the data stream from the very beginning. Checkpoints carry no dataloader or RNG state, and the streaming dataset's seed is hard-coded.",
         "evidence": "src/train/utils.py save_checkpoint() persists only {step, model_state_dict, optimizer_state_dict, config}. src/data/dataset.py StreamingShardDataset defaults seed=42 and src/train/train.py lines 163\u2013168 never pass a seed, so `rng = default_rng(42 + worker_id*1000003)` reproduces the identical shard order and identical within-shard permutation on every restart. The run is currently paused at step 40,750 and will resume from checkpoint 40,000, so the first ~1.28M sequences get a second pass while the tail gets none. A 9-day Windows run that restarts every ~40k steps would never see beyond the first ~18% of the corpus.",
-        "source": "C:\\Users\\Evan Borodow\\Downloads\\1386.ai\\src\\train\\utils.py lines 18\u201334; src/data/dataset.py lines 86\u2013136; src/train/train.py lines 140\u2013143, 161\u2013168"
+        "source": "C:\\Users\\eb1386\\Downloads\\1386.ai\\src\\train\\utils.py lines 18\u201334; src/data/dataset.py lines 86\u2013136; src/train/train.py lines 140\u2013143, 161\u2013168"
       },
       {
         "claim": "SILENT BUG: the SFT masked-loss + gradient-accumulation normalization weights tokens unequally. Assistant tokens are effectively weighted between 0.62x and 2.62x (p5\u2013p95) instead of uniformly, systematically upweighting short assistant turns.",
         "evidence": "src/train/train.py lines 253\u2013258 compute `masked_loss = (loss_per_token*mask).sum() / (mask.sum()+1e-8)` per micro-batch, then `loss = masked_loss/grad_accum`. The correct full-batch quantity is sum(nll) over ALL micro-batches divided by sum(mask) over all micro-batches, which makes micro-batch i's implicit token weight mean(c)/c_i rather than 1. Simulated 3,000 optimizer steps against the real masks in data/sft_shards_1.1_v2 (100,000 sequences, mean 684.0 assistant tokens/seq, std 211.9, p1=94, p99=982): heaviest micro-batch weight per step averages 1.77x (p95 2.62x, max 14.0x), lightest averages 0.72x (p5 0.62x, min 0.10x). Also 0.26% of SFT sequences contain zero assistant tokens (~438 of 168,539) and contribute nothing; they avoid NaN only because the numerator is also zero.",
-        "source": "C:\\Users\\Evan Borodow\\Downloads\\1386.ai\\src\\train\\train.py lines 250\u2013265; simulation over data/sft_shards_1.1_v2 mask shards; https://unsloth.ai/blog/gradient"
+        "source": "C:\\Users\\eb1386\\Downloads\\1386.ai\\src\\train\\train.py lines 250\u2013265; simulation over data/sft_shards_1.1_v2 mask shards; https://unsloth.ai/blog/gradient"
       },
       {
         "claim": "The corpus contains the exact loss-spike trigger OLMo 2 filters for: 0.63% of packed sequences contain a run of 32 or more consecutive repeated n-grams. At batch 32 that is ~18% of optimizer steps.",
@@ -2570,7 +2570,7 @@
       {
         "claim": "The default decoding settings actively sabotage code generation: repetition_penalty=1.2 applied over the last 256 tokens penalizes exactly the tokens Python requires \u2014 indentation, keywords, delimiters.",
         "evidence": "src/inference/generate.py: generate() defaults repetition_penalty=1.2 and apply_repetition_penalty() divides the logit of every token in set(past_tokens[-256:]) by 1.2. In a 256-token Python window, indentation runs, 'return', '=', '(' , ':' and variable names all recur legitimately. The decoding path itself is correct, so with val CE at 2.98 nats (model is only ~72% of the way from uniform-over-48k to certain) any repetition seen now is undertraining, not a sampler defect \u2014 but the 1.2 penalty is a separate, independent handicap on the code benchmark that currently reads ~0%.",
-        "source": "C:\\Users\\Evan Borodow\\Downloads\\1386.ai\\src\\inference\\generate.py lines 14\u201327, 59\u201371"
+        "source": "C:\\Users\\eb1386\\Downloads\\1386.ai\\src\\inference\\generate.py lines 14\u201327, 59\u201371"
       },
       {
         "claim": "CAPACITY CLIFF: 521M parameters is not the binding constraint \u2014 data volume is. Plasma has 14.4 unique tokens per parameter; competitive small models use 2,700x to 36,000x tokens per parameter.",
@@ -2585,7 +2585,7 @@
       {
         "claim": "Two lower-severity waste items: checkpoints store the tied embedding twice, and the training loop forces 16 GPU syncs per optimizer step.",
         "evidence": "The step-40000 checkpoint is 6,259,153,659 bytes and `output.weight` is present in the state_dict alongside `tok_emb.weight` (they are the same Parameter object, so this is a pure 48000*1280*4 = 245 MB duplicate per file; with keep_last_checkpoints=4 that is ~1 GB). src/train/train.py line 261 calls `accum_loss += loss.item()` inside the grad_accum loop, forcing a host-device sync on all 16 micro-steps of every optimizer step \u2014 relevant to the 13,500 tok/s (~56 TFLOP/s vs ~450 peak) throughput gap noted in the run.",
-        "source": "C:\\Users\\Evan Borodow\\Downloads\\1386.ai\\src\\train\\train.py line 261; src/model/transformer.py line 51; checkpoint file size"
+        "source": "C:\\Users\\eb1386\\Downloads\\1386.ai\\src\\train\\train.py line 261; src/model/transformer.py line 51; checkpoint file size"
       }
     ],
     "recommendations": [

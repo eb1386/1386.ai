@@ -5,7 +5,7 @@
 # Survives terminal/session teardown (the failure that idled the GPU for 9h).
 #   powershell -File scripts\resume_training.ps1
 Set-Location $PSScriptRoot\..
-$py = "C:\Users\Evan Borodow\AppData\Local\Programs\Python\Python310\python.exe"
+$py = "$env:LOCALAPPDATA\Programs\Python\Python310\python.exe"
 $running = Get-CimInstance Win32_Process -Filter "Name='python.exe'" |
            Where-Object { $_.CommandLine -like '*src.train.train*' }
 if ($running) { Write-Output ("already training, PID " + $running.ProcessId); exit 0 }

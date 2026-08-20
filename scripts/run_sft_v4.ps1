@@ -7,7 +7,7 @@
 # the v3 final stays untouched as the baseline.
 
 Set-Location $PSScriptRoot\..
-$py = "C:\Users\Evan Borodow\AppData\Local\Programs\Python\Python310\python.exe"
+$py = "$env:LOCALAPPDATA\Programs\Python\Python310\python.exe"
 
 function Log($m) {
   $l = ("[{0}] {1}" -f (Get-Date -Format "MM-dd HH:mm:ss"), $m)

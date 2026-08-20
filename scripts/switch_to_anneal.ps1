@@ -7,7 +7,7 @@
 # Safe to run twice: it exits if the anneal phase has already started.
 
 Set-Location $PSScriptRoot\..
-$py   = "C:\Users\Evan Borodow\AppData\Local\Programs\Python\Python310\python.exe"
+$py   = "$env:LOCALAPPDATA\Programs\Python\Python310\python.exe"
 $ck   = "checkpoints\1.1_v3_step_280000.pt"
 $cfg  = "configs/pretrain_1.1_v3_anneal.yaml"
 $log  = "logs\anneal.log"
