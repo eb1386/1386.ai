@@ -1,111 +1,79 @@
 # Plasma
 
-A 521M-parameter LLM trained completely from scratch on a single RTX 5080.
-No pretrained weights, no cloud, no distillation. 10B tokens of pretraining,
-a full SFT pipeline, a custom tokenizer, and a local chat UI.
+Plasma is a 521M-parameter language model trained from scratch on a single RTX 5080.
 
-It seemed dumb. Then an audit found five pipeline bugs that were making it
-look about 30% dumber than it actually was.
+It was pretrained on 10B tokens, then instruction-tuned on roughly 300k filtered conversations. The project includes the tokenizer, data pipeline, model architecture, training loop, evaluation tools, inference stack, and local chat UI.
 
-## The five bugs
+## Model
 
-**1. The model never saw its own chat template at inference.**
-Training tokenized `Assistant: ` as its own span, producing `['▁Assistant', ':']`.
-Inference encoded the whole prompt string, which after a newline tokenizes as
-`['Ass', 'istant', ':']`. Every generation started from token IDs the model
-had never seen in that position. Fixed by building prompts at the token level
-(`src/inference/template.py`), exactly mirroring how the SFT data was encoded.
+- 521M parameters
+- 26 transformer layers
+- Hidden size: 1280
+- 20 attention heads
+- 4 KV heads using grouped-query attention
+- SwiGLU feed-forward layers
+- RMSNorm
+- RoPE
+- Tied input and output embeddings
+- 48k SentencePiece vocabulary
+- Split-digit tokenization
+- Byte fallback
+- Context length: 1024
 
-**2. The repetition penalty was banning the answer.**
-Penalty 1.3 applied before the temperature divide is roughly a 100x
-suppression of repeated tokens at T=0.5. With split-digit tokenization,
-answering "85 + 34 = 119" requires repeating digit tokens you just emitted.
-Math scored 0.00 with the penalty, 0.62 without it. It also progressively
-suppressed "the", "is" and "." which is exactly why answers started correct
-and decayed into word salad as they got longer.
+Training used bf16, gradient checkpointing, and a WSD learning-rate schedule with cooldown.
 
-**3. The tokenizer could not represent indentation.**
-SentencePiece defaults to `remove_extra_whitespaces=True`, which makes
-`'    return x'` encode identically to `'return x'`. Ten billion pretraining
-tokens contained zero indented code, and the model could never emit valid
-Python no matter what. Bonus: the tokenizer's training sample was supposed to
-be 10% code, but the code file was empty and the sampler silently
-renormalized the weights. The 1.2 tokenizer fixes all of this and verifies
-itself before it will accept the trained model.
+## Training
 
-**4. It was trained not to stop.**
-EOS appeared only at the end of whole conversations, so a third of all
-answers the model saw were followed by more dialogue instead of a stop token.
-Packed training sequences read `answer <EOS> User: new topic` with full
-attention across the seam. Under greedy decoding the model stopped at EOS
-only 31% of the time. The v4 SFT supervises EOS after every single answer and
-uses block-diagonal attention so packed conversations cannot see each other.
+Plasma was trained completely from scratch.
 
-**5. The SFT data taught the bad habits.**
-UltraChat was 42% of the training signal: verbose essays with fabricated
-facts. hh_helpful trained hedge-openers ("I'm not sure, but I think...") at
-10-60x the rate of any other source. OASST taught it to claim to be a
-different AI assistant, verbatim, at an 83% duplication rate. Under 1% of
-conversations contained a Python function.
+- Pretraining data: 10B tokens
+- Hardware: single RTX 5080 with 16 GB VRAM
+- Pretrained weights: none
+- Distillation: none
+- Cloud compute: none
+- Instruction tuning: approximately 300k filtered conversations
 
-## Results
+The full training pipeline, tokenizer, model code, data preparation, checkpointing, and evaluation scripts are included in this repository.
 
-Fixing only the serving layer, same checkpoint, zero retraining:
+## Evaluation
 
-| 309-prompt battery        | before | after |
-|---------------------------|--------|-------|
-| overall (243 auto-scored) | 0.584  | 0.745 |
-| math word problems        | 0.10   | 0.70  |
-| code that executes        | 0.00   | 0.20  |
-| fake dialogue turns       | 17%    | 0.3%  |
+Standard benchmark results:
 
-Retraining the SFT on audited data (v4) on top of that:
+| Benchmark | Score |
+|---|---:|
+| PIQA | 0.71 |
+| HellaSwag | 0.47 |
+| ARC-Easy | 0.46 |
 
-| behavior                  | v3     | v4    |
-|---------------------------|--------|-------|
-| stops at EOS              | 54%    | 99.4% |
-| mean answer length        | 147 tok| 28 tok|
-| instruction following     | 0.33   | 0.53  |
-| hedging / identity leaks  | ~1%    | 0.0%  |
+These results use `acc_norm` on 300 examples per benchmark.
 
-Against the previous generation on standard benchmarks (acc_norm, 300/task):
-HellaSwag 0.47, PIQA 0.71, ARC-Easy 0.46, all up 8-14 points over the
-pre-rebuild model of the same size.
+The repository also includes a 309-prompt behavioral evaluation battery covering instruction following, math, executable code, response termination, formatting, and dialogue behavior.
 
-## What it still can't do
+Selected results after serving and SFT fixes:
 
-Honesty section. Carry arithmetic (26+58 comes out wrong), multi-step
-reasoning, and deep factual knowledge past the first sentence. Those are
-pretraining-scale limits at 10B tokens, not bugs. Plasma 1.2 (756M, 30B
-tokens, lossless tokenizer, seq 2048) targets exactly these and the full
-pipeline for it is in this repo.
+| Metric | Result |
+|---|---:|
+| Overall auto-scored battery | 0.745 |
+| Math word problems | 0.70 |
+| Executable code | 0.20 |
+| Stops at EOS | 99.4% |
+| Instruction following | 0.53 |
 
-## Run it
+## Limitations
+
+Plasma is still a small language model trained on a relatively limited token budget.
+
+It remains weak at:
+
+- multi-step reasoning
+- arithmetic with carries
+- deep factual knowledge
+- more difficult coding tasks
+
+These limitations are mainly related to model and pretraining scale.
+
+## Run
 
 ```bash
 pip install -r requirements.txt
-
-python run.py                          # chat ui at localhost:8000
-python scripts/run_plasma_v3.py        # rebuild 1.1 from scratch (days)
-python scripts/run_plasma_1.2.py       # the full 1.2 pipeline (weeks)
-python scripts/monitor.py --watch 120  # watch a training run
-```
-
-Evaluation:
-
-```bash
-python scripts/audit/run_battery.py --subset full --conditions fixed --out logs/audit/my_run.jsonl
-python scripts/audit/score_battery.py logs/audit/my_run.jsonl
-```
-
-## Architecture
-
-LLaMA-style decoder: 26 layers, hidden 1280, 20 heads with 4 KV heads (GQA),
-SwiGLU FFN, RMSNorm, RoPE, tied embeddings, 48k SentencePiece vocab with
-split digits and byte fallback, seq 1024. Trained in bf16 with gradient
-checkpointing, WSD schedule with (1-sqrt) cooldown, per-source epoch caps so
-the data mixture never drifts. Everything fits and trains on one 16GB
-consumer GPU.
-
-Weights are not in the repo (GitHub caps files at 100MB; these are 6GB).
-Everything needed to reproduce them is.
+python run.py
